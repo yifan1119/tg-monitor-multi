@@ -22,7 +22,7 @@
   <div class="wizard-step">4 · 第一個部門</div>
 </div>
 
-<form action="/setup" method="POST">
+<form action="/setup" method="POST" enctype="multipart/form-data">
   <div class="panel">
     <div class="panel-title">1. Web 後台管理員帳號</div>
     <div class="form-group">
@@ -52,11 +52,26 @@
   </div>
 
   <div class="panel">
-    <div class="panel-title">3. Google Service Account（選填 · MVP 暫不處理上傳）</div>
+    <div class="panel-title">3. Google Service Account</div>
+
+    <% if (locals.saExists && locals.saInfo) { %>
+      <div style="padding: 0.75rem 1rem; background: rgba(0, 255, 149, 0.06); border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; margin-bottom: 1rem; font-size: 0.85rem;">
+        <span style="color: var(--green); font-weight: 700;">✓ 已上傳</span>
+        <span style="color: var(--text-1); margin-left: 0.75rem;"><code style="color: var(--accent);"><%= saInfo.clientEmail %></code></span>
+        <% if (saInfo.projectId) { %>
+          <span style="color: var(--text-dim); margin-left: 0.5rem;">· <%= saInfo.projectId %></span>
+        <% } %>
+        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.35rem;">下方可選擇新檔案覆蓋</div>
+      </div>
+    <% } %>
+
     <div class="form-group">
-      <label>上傳 google-service-account.json</label>
-      <input type="file" name="google_sa" accept="application/json" disabled>
-      <div class="hint">留到下個批次實作。現在請先手動把檔案放到 <code style="color: var(--accent);">shared/google-service-account.json</code></div>
+      <label><%= locals.saExists ? "替換" : "上傳" %> google-service-account.json <%= locals.saExists ? "（選填）" : "" %></label>
+      <input type="file" name="google_sa" accept="application/json,.json">
+      <div class="hint">
+        到 <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:var(--accent);">GCP Console → IAM → Service Accounts</a> → 選擇或建立帳號 → Keys → Add Key → Create new key (JSON) → 下載後上傳。<br>
+        所有部門共用這一把鑰匙. 對應 Google Sheet 要把這個帳號的 email 加為「編輯者」.
+      </div>
     </div>
   </div>
 

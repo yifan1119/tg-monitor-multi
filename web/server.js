@@ -9,11 +9,18 @@
 
 const express = require("express");
 const expressLayouts = require("express-ejs-layouts");
+const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
 const dataProvider = require("./lib/data-provider");
 const { createDept, validateDeptName } = require("../scripts/new-dept");
+
+// multer: 處理 multipart/form-data (檔案上傳). 記憶體儲存, 200KB 上限 (Google SA JSON 通常 ~2KB)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 200 * 1024 },
+});
 
 const app = express();
 const PORT = Number(process.env.PORT || 5003);
@@ -21,6 +28,7 @@ const ROOT = path.resolve(__dirname, "..");
 const VERSION = require("../package.json").version;
 const DATA_DIR = path.join(ROOT, "data");
 const SYSTEM_JSON = path.join(DATA_DIR, "system.json");
+const GOOGLE_SA_PATH = path.join(ROOT, "shared", "google-service-account.json");
 
 // ─── View Engine ──────────────────────────────────────
 app.set("view engine", "ejs");
@@ -94,12 +102,22 @@ app.get("/logout", (_req, res) => res.redirect("/login"));
 
 // ─── Setup Wizard ────────────────────────────────────
 function renderSetup(res, { error = null, formData = {} } = {}, status = 200) {
+  const saExists = fs.existsSync(GOOGLE_SA_PATH);
+  let saInfo = null;
+  if (saExists) {
+    try {
+      const sa = JSON.parse(fs.readFileSync(GOOGLE_SA_PATH, "utf8"));
+      saInfo = { clientEmail: sa.client_email || "(未知)", projectId: sa.project_id || "" };
+    } catch { /* 解析失敗也顯示檔案存在但結構壞 */ }
+  }
   res.status(status).render("pages/setup", {
     title: "首次設置",
     showNav: false,
     active: "",
     error,
     formData,
+    saExists,
+    saInfo,
   });
 }
 
@@ -107,7 +125,8 @@ app.get("/setup", (_req, res) => {
   renderSetup(res);
 });
 
-app.post("/setup", async (req, res) => {
+// 處理 google_sa 檔案上傳 (單檔, field name = google_sa)
+app.post("/setup", upload.single("google_sa"), async (req, res) => {
   // 第 1 批: 先驗證 → 通過才寫檔 + 建部門 + 重生 ecosystem
   const {
     admin_username, admin_password,
@@ -121,12 +140,31 @@ app.post("/setup", async (req, res) => {
   };
 
   try {
-    // 0. 若有填部門, 先驗 dept_name (避免 system.json 被寫後才發現錯)
+    // 0a. 若有填部門, 先驗 dept_name
     if (dept_name) {
       const v = validateDeptName(dept_name.trim());
       if (!v.ok) {
         return renderSetup(res, { error: `部門代號: ${v.reason}`, formData }, 400);
       }
+    }
+
+    // 0b. 若有上傳 Google SA 檔, 先驗 JSON 結構
+    if (req.file && req.file.buffer) {
+      let parsed;
+      try {
+        parsed = JSON.parse(req.file.buffer.toString("utf8"));
+      } catch {
+        return renderSetup(res, { error: "Google SA 檔案不是有效 JSON", formData }, 400);
+      }
+      if (!parsed.type || parsed.type !== "service_account" || !parsed.client_email || !parsed.private_key) {
+        return renderSetup(res, {
+          error: "Google SA 檔案結構不對: 缺少 type/client_email/private_key. 請從 GCP Console → IAM → Service Accounts 下載 JSON key.",
+          formData,
+        }, 400);
+      }
+      // 驗證通過, 寫到 shared/
+      fs.writeFileSync(GOOGLE_SA_PATH, req.file.buffer.toString("utf8"));
+      console.log(`[setup] Google SA 已保存: ${parsed.client_email}`);
     }
 
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
