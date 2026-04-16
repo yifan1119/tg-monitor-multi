@@ -1,0 +1,135 @@
+<% /* TG 登入 wizard — 根據 step 渲染不同畫面 */ %>
+<div class="page-header">
+  <div>
+    <div class="page-title">Telegram 登入 · <%= deptName %></div>
+    <div class="page-subtitle">
+      <% if (step === "phone") { %>第 1 步 · 輸入手機號
+      <% } else if (step === "code") { %>第 2 步 · 輸入驗證碼
+      <% } else if (step === "password") { %>第 3 步 · 輸入兩步驗證密碼
+      <% } else if (step === "done") { %>✓ 登入成功
+      <% } %>
+    </div>
+  </div>
+  <div>
+    <a href="/depts/<%= deptName %>/edit" class="btn ghost">返回編輯</a>
+  </div>
+</div>
+
+<div class="wizard-steps">
+  <div class="wizard-step <%= step === 'phone' ? 'active' : (['code','password','done'].includes(step) ? 'done' : '') %>">1 · 手機號</div>
+  <div class="wizard-step <%= step === 'code' ? 'active' : (['password','done'].includes(step) ? 'done' : '') %>">2 · 驗證碼</div>
+  <div class="wizard-step <%= step === 'password' ? 'active' : (step === 'done' ? 'done' : '') %>">3 · 2FA（若有）</div>
+  <div class="wizard-step <%= step === 'done' ? 'active done' : '' %>">4 · 完成</div>
+</div>
+
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem;">⚠ <%= error %></div>
+  </div>
+<% } %>
+
+<% if (step === "phone") { %>
+
+  <form action="/depts/<%= deptName %>/login/phone" method="POST">
+    <div class="panel">
+      <div class="panel-title">輸入 TG 帳號綁定的手機號</div>
+      <div class="form-group">
+        <label>手機號（含國碼）</label>
+        <input type="tel" name="phone" placeholder="+8613800138000" required autofocus value="<%= locals.phone || '' %>">
+        <div class="hint">
+          必須含國碼。例：<code>+886912345678</code>（台灣）、<code>+8613800138000</code>（大陸）。<br>
+          TG 會寄驗證碼到這個手機號的 TG 官方 Bot 或短訊。
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn">寄驗證碼</button>
+      </div>
+    </div>
+  </form>
+
+  <div style="padding: 1rem; background: rgba(255, 201, 64, 0.06); border-left: 3px solid var(--yellow); border-radius: 0 6px 6px 0; font-size: 0.85rem; color: var(--text-1); margin-top: 1rem;">
+    <strong style="color: var(--yellow);">⚠ 注意</strong>
+    <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0; line-height: 1.8;">
+      <li>這是<strong>真人號登入</strong>（不是 Bot）。session 產生後 TG 會認這個設備</li>
+      <li>避免短時間內頻繁登入同一個號（TG 會風控鎖號）</li>
+      <li>登入後 session.txt 寫到 <code style="color: var(--accent);">depts/<%= deptName %>/session.txt</code>，千萬不要推 git</li>
+    </ul>
+  </div>
+
+<% } else if (step === "code") { %>
+
+  <form action="/depts/<%= deptName %>/login/code" method="POST">
+    <div class="panel">
+      <div class="panel-title">輸入 TG 寄來的驗證碼</div>
+      <div class="form-group">
+        <label>驗證碼（<%= phone %>）</label>
+        <input type="text" name="code" placeholder="5-6 位數字" pattern="\d{4,7}" required autofocus autocomplete="one-time-code"
+          inputmode="numeric" style="font-size: 1.2rem; letter-spacing: 0.3em; text-align: center;">
+        <div class="hint">
+          收到驗證碼的地方（按順序檢查）:
+          <ol style="margin: 0.5rem 0 0 1.25rem;">
+            <li>TG App 裡的 <strong>Telegram 官方帳號</strong>（藍勾勾那個）</li>
+            <li>手機簡訊</li>
+            <li>其他已登入此號的設備</li>
+          </ol>
+        </div>
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: space-between;">
+        <form action="/depts/<%= deptName %>/login/abort" method="POST" style="display:inline;">
+          <button type="submit" class="btn ghost">重新輸手機號</button>
+        </form>
+        <button type="submit" class="btn">提交驗證碼</button>
+      </div>
+    </div>
+  </form>
+
+<% } else if (step === "password") { %>
+
+  <form action="/depts/<%= deptName %>/login/password" method="POST">
+    <div class="panel">
+      <div class="panel-title">兩步驗證（2FA）密碼</div>
+      <div style="padding: 0.75rem 1rem; background: rgba(0, 230, 255, 0.05); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.85rem; color: var(--text-1); margin-bottom: 1rem;">
+        <strong style="color: var(--accent);">ℹ 此帳號開了兩步驗證</strong>
+        <div>請輸入在 TG App 設定的 Cloud Password（不是短訊驗證碼）</div>
+      </div>
+      <div class="form-group">
+        <label>Cloud Password</label>
+        <input type="password" name="password" required autofocus autocomplete="current-password">
+        <div class="hint">忘了的話只能在 TG App 裡重設（選擇 Forgot password → 會要求重新收短訊）</div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn">提交密碼</button>
+      </div>
+    </div>
+  </form>
+
+<% } else if (step === "done") { %>
+
+  <div class="panel" style="text-align: center; padding: 3rem 2rem;">
+    <div style="font-family: 'Orbitron', sans-serif; font-size: 2rem; color: var(--green); margin-bottom: 1rem; letter-spacing: 0.2em;">
+      ✓ LOGIN OK
+    </div>
+    <div style="font-size: 1rem; color: var(--text-1); margin-bottom: 0.5rem;">
+      Session 已寫入 <code style="color: var(--accent);">depts/<%= deptName %>/session.txt</code>
+    </div>
+    <% if (locals.bytes) { %>
+      <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem;"><%= bytes %> bytes</div>
+    <% } %>
+
+    <div style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(0, 255, 149, 0.04); border: 1px solid rgba(0, 255, 149, 0.2); border-radius: 8px; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+      <div style="font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--green); letter-spacing: 0.15em; margin-bottom: 0.75rem;">▸ 下一步</div>
+      <ol style="font-size: 0.85rem; color: var(--text-1); line-height: 2; padding-left: 1.25rem; margin: 0;">
+        <li>回編輯頁確認配置（中轉群名 / Sheet ID 都對）</li>
+        <li>確認 TG 號已加入中轉群 <strong style="color: var(--accent);"><%= locals.outputChat || '中轉群' %></strong></li>
+        <li>啟動進程：編輯頁點「▶ 啟動」</li>
+        <li>回 Dashboard 看狀態燈（應變綠）</li>
+      </ol>
+    </div>
+
+    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
+      <a href="/depts/<%= deptName %>/edit" class="btn">返回編輯頁</a>
+      <a href="/dashboard" class="btn ghost">Dashboard</a>
+    </div>
+  </div>
+
+<% } %>

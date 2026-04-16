@@ -1,0 +1,157 @@
+<% const fd = locals.formData || {}; %>
+<% const cfg = locals.config || {}; %>
+<div class="page-header">
+  <div>
+    <div class="page-title">編輯部門 · <%= dept.name %></div>
+    <div class="page-subtitle">修改 <code>depts/<%= dept.name %>/config.json</code></div>
+  </div>
+  <div>
+    <a href="/depts" class="btn ghost">返回列表</a>
+  </div>
+</div>
+
+<% if (locals.flash) { %>
+  <div class="panel" style="border-left: 3px solid var(--green); background: rgba(0, 255, 149, 0.06);">
+    <div style="color: var(--green); font-weight: 700; font-size: 0.85rem;">✓ <%= flash %></div>
+  </div>
+<% } %>
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 保存失敗</div>
+    <div style="color: var(--text-0); font-size: 0.9rem;"><%= error %></div>
+  </div>
+<% } %>
+
+<!-- ─── 進程狀態卡 ─────────────────────────────── -->
+<div class="panel">
+  <div class="panel-title">PM2 進程狀態</div>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr><th>類型</th><th>名稱</th><th>狀態</th><th>CPU</th><th>RAM</th><th>重啟</th><th>Uptime</th></tr>
+      </thead>
+      <tbody>
+        <% ["listener","system-events","sheet-writer"].forEach(k => {
+          const p = procs.find(x => x.kind === k);
+        %>
+          <tr>
+            <td><%= k %></td>
+            <td><code>tg-<%= k %>-<%= dept.name %></code></td>
+            <% if (p) { %>
+              <td class="status-<%= p.status %>">● <%= p.status %></td>
+              <td><%= p.cpu.toFixed(1) %>%</td>
+              <td><%= p.mem %> MB</td>
+              <td><%= p.restarts %></td>
+              <td><%= p.uptime %></td>
+            <% } else { %>
+              <td style="color: var(--text-dim);">— 未啟動</td>
+              <td>—</td><td>—</td><td>—</td><td>—</td>
+            <% } %>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+    <form action="/depts/<%= dept.name %>/restart" method="POST" style="display: inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">↻ 重啟</button>
+    </form>
+    <form action="/depts/<%= dept.name %>/start" method="POST" style="display: inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">▶ 啟動</button>
+    </form>
+    <form action="/depts/<%= dept.name %>/stop" method="POST" style="display: inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">⏸ 停止</button>
+    </form>
+    <div style="flex: 1;"></div>
+    <form action="/depts/<%= dept.name %>/delete" method="POST" style="display: inline;"
+      onsubmit="return confirm('確認刪除部門 <%= dept.name %>？目錄會搬到 .trash-<時間戳>-<%= dept.name %> 但不會立刻清除. session.txt 會一併搬走, 請自行備份.');">
+      <button type="submit" class="btn danger" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">🗑 刪除部門</button>
+    </form>
+  </div>
+</div>
+
+<!-- ─── Session 狀態 ─────────────────────────────── -->
+<div class="panel">
+  <div class="panel-title">Telegram 登入狀態</div>
+  <% if (dept.sessionOk) { %>
+    <div style="padding: 0.75rem 1rem; background: rgba(0, 255, 149, 0.06); border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; font-size: 0.85rem;">
+      <span style="color: var(--green); font-weight: 700;">✓ 已登入</span>
+      <span style="color: var(--text-dim); margin-left: 0.75rem;">session.txt 已存在</span>
+      <div style="margin-top: 0.5rem;">
+        <a href="/depts/<%= dept.name %>/login" class="btn ghost" style="padding: 0.35rem 0.8rem; font-size: 0.75rem;">重新登入</a>
+      </div>
+    </div>
+  <% } else { %>
+    <div style="padding: 0.75rem 1rem; background: rgba(255, 201, 64, 0.08); border-left: 3px solid var(--yellow); border-radius: 0 6px 6px 0; font-size: 0.85rem;">
+      <span style="color: var(--yellow); font-weight: 700;">⚠ 尚未登入</span>
+      <div style="color: var(--text-1); margin-top: 0.4rem;">進程會因為缺 session.txt 而報錯. 請先完成 TG 登入.</div>
+      <div style="margin-top: 0.5rem;">
+        <a href="/depts/<%= dept.name %>/login" class="btn">🔑 去登入 TG</a>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<!-- ─── 配置表單 ─────────────────────────────── -->
+<form action="/depts/<%= dept.name %>/edit" method="POST">
+  <div class="panel">
+    <div class="panel-title">基本資訊</div>
+    <div class="form-group">
+      <label>顯示名稱 (display)</label>
+      <input type="text" name="display" value="<%= fd.display != null ? fd.display : (cfg.display || '') %>" required>
+    </div>
+    <div class="form-group">
+      <label>中轉群名稱 (outputChatName / inputChatName)</label>
+      <input type="text" name="outputChatName" value="<%= fd.outputChatName != null ? fd.outputChatName : (cfg.outputChatName || '') %>" required>
+      <div class="hint">listener 推這個群、sheet_writer 訂閱這個群. 兩邊同步更新</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Google Sheet</div>
+    <div class="form-group">
+      <label>Spreadsheet ID</label>
+      <input type="text" name="spreadsheetId" value="<%= fd.spreadsheetId != null ? fd.spreadsheetId : (cfg.spreadsheetId || '') %>" required>
+    </div>
+    <div class="form-group">
+      <label>工作表分頁名稱 (sheetName)</label>
+      <input type="text" name="sheetName" value="<%= fd.sheetName != null ? fd.sheetName : (cfg.sheetName || '') %>" required>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">關鍵字（每行一個）</div>
+    <div class="form-group">
+      <textarea name="keywords" rows="8" style="font-family: 'JetBrains Mono', monospace;"><%= fd.keywords != null ? fd.keywords : (cfg.keywords || []).join('\n') %></textarea>
+      <div class="hint">listener 比對群訊息時用</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">進階參數</div>
+    <div class="form-group">
+      <label>關鍵字冷卻時間 (cooldownMs)</label>
+      <input type="number" name="cooldownMs" value="<%= fd.cooldownMs != null ? fd.cooldownMs : (cfg.cooldownMs || 600000) %>">
+      <div class="hint">同群同關鍵字多久內不重推. 預設 600000 ms = 10 分鐘</div>
+    </div>
+    <div class="form-group">
+      <label>訊息摘要長度 (summaryMaxLength)</label>
+      <input type="number" name="summaryMaxLength" value="<%= fd.summaryMaxLength != null ? fd.summaryMaxLength : (cfg.summaryMaxLength || 120) %>">
+    </div>
+    <div class="form-group">
+      <label>Backfill 間隔 ms (backfillIntervalMs)</label>
+      <input type="number" name="backfillIntervalMs" value="<%= fd.backfillIntervalMs != null ? fd.backfillIntervalMs : (cfg.backfillIntervalMs || 60000) %>">
+      <div class="hint">sheet_writer 每 N ms 補掃最近訊息. 預設 60000 ms</div>
+    </div>
+    <div class="form-group">
+      <label>Backfill 掃幾條 (backfillLimit)</label>
+      <input type="number" name="backfillLimit" value="<%= fd.backfillLimit != null ? fd.backfillLimit : (cfg.backfillLimit || 30) %>">
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+    <a href="/depts" class="btn ghost">取消</a>
+    <button type="submit" class="btn">保存並重啟進程</button>
+  </div>
+</form>

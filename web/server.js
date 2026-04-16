@@ -297,9 +297,240 @@ app.post("/depts/new", async (req, res) => {
     renderDeptNew(res, { error: e.message, formData }, 400);
   }
 });
-app.get("/depts/:name/edit",     placeholder("編輯部門", "修改 config.json", "D5 實作", "預計 D5 (4/20) 完成。屆時可線上編輯中轉群名 / Spreadsheet ID / 關鍵字列表 / 冷卻時間等。保存即重啟對應進程。"));
-app.get("/depts/:name/login",    placeholder("TG 登入", "手機號 → 驗證碼 → 兩步驗證", "v0.3 實作", "留到 v0.3。目前需在 VPS 上手動跑 node scripts/login-dept.js 完成登入。"));
-app.get("/depts/:name",          (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
+// ─── 編輯部門 ─────────────────────────────────
+function loadDeptForEdit(name) {
+  const { DEPTS_DIR: DD } = require("../scripts/new-dept");
+  const deptDir = path.join(DD, name);
+  if (!fs.existsSync(deptDir) || !fs.statSync(deptDir).isDirectory()) return null;
+  const configPath = path.join(deptDir, "config.json");
+  const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
+  const sessionPath = path.join(deptDir, "session.txt");
+  const sessionOk = fs.existsSync(sessionPath) && fs.statSync(sessionPath).size > 0;
+  return {
+    name,
+    config,
+    sessionOk,
+    display: config.display || name,
+  };
+}
+
+async function listProcsForDept(name) {
+  const all = await dataProvider.listProcesses();
+  return all.filter(p => p.dept === name);
+}
+
+app.get("/depts/:name/edit", async (req, res) => {
+  const name = req.params.name;
+  const dept = loadDeptForEdit(name);
+  if (!dept) {
+    return res.status(404).render("pages/placeholder", {
+      title: "部門不存在", subtitle: "", stage: "",
+      description: `depts/${name}/ 不存在.`, active: "depts",
+    });
+  }
+  const procs = await listProcsForDept(name);
+  res.render("pages/dept-edit", {
+    title: `編輯 · ${name}`, active: "depts",
+    dept, config: dept.config, procs,
+    formData: {}, error: null, flash: req.query.flash || null,
+  });
+});
+
+app.post("/depts/:name/edit", async (req, res) => {
+  const name = req.params.name;
+  const dept = loadDeptForEdit(name);
+  if (!dept) return res.status(404).send("部門不存在");
+
+  const body = req.body;
+  // keywords textarea → 陣列
+  const keywords = String(body.keywords || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+
+  try {
+    const updated = {
+      ...dept.config,
+      display: body.display || dept.config.display,
+      outputChatName: body.outputChatName,
+      inputChatName: body.outputChatName, // 同步
+      spreadsheetId: body.spreadsheetId,
+      sheetName: body.sheetName,
+      keywords,
+      cooldownMs: Number(body.cooldownMs) || dept.config.cooldownMs,
+      summaryMaxLength: Number(body.summaryMaxLength) || dept.config.summaryMaxLength,
+      backfillIntervalMs: Number(body.backfillIntervalMs) || dept.config.backfillIntervalMs,
+      backfillLimit: Number(body.backfillLimit) || dept.config.backfillLimit,
+    };
+    const { DEPTS_DIR: DD } = require("../scripts/new-dept");
+    fs.writeFileSync(
+      path.join(DD, name, "config.json"),
+      JSON.stringify(updated, null, 2) + "\n"
+    );
+    // 保存後自動重啟 (若進程在跑)
+    await restartDept(name);
+    res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已保存 config.json 並嘗試重啟進程")}`);
+  } catch (e) {
+    console.error("save config failed:", e);
+    const procs = await listProcsForDept(name);
+    res.status(400).render("pages/dept-edit", {
+      title: `編輯 · ${name}`, active: "depts",
+      dept, config: dept.config, procs,
+      formData: body, error: e.message, flash: null,
+    });
+  }
+});
+
+// ─── PM2 控制 ────────────────────────────────
+function pm2Exec(action, nameGlob) {
+  return new Promise((resolve) => {
+    // pm2 支援 name 模糊匹配，用 `tg-*-<dept>` 一次管 3 個
+    execFile("pm2", [action, nameGlob], { cwd: ROOT }, (err, stdout, stderr) => {
+      if (err) console.error(`[pm2 ${action} ${nameGlob}]`, stderr || err.message);
+      else console.log(`[pm2 ${action} ${nameGlob}]`, stdout.trim().split("\n").slice(-3).join(" | "));
+      resolve({ ok: !err, stdout, stderr: stderr || (err && err.message) || "" });
+    });
+  });
+}
+
+async function restartDept(name) {
+  // 用 glob 同時管 3 類進程
+  return pm2Exec("restart", `tg-*-${name}`);
+}
+async function startDept(name) {
+  // 先 try start (若已跑會錯 but 無害), fallback start ecosystem --only
+  const ecosystemPath = path.join(ROOT, "ecosystem.config.js");
+  if (!fs.existsSync(ecosystemPath)) {
+    return { ok: false, stderr: "ecosystem.config.js 不存在, 請先新增部門後再啟動" };
+  }
+  return new Promise((resolve) => {
+    execFile("pm2", ["start", ecosystemPath, "--only", `tg-listener-${name},tg-system-events-${name},tg-sheet-writer-${name}`],
+      { cwd: ROOT },
+      (err, stdout, stderr) => {
+        if (err) console.error(`[pm2 start ${name}]`, stderr || err.message);
+        resolve({ ok: !err, stdout, stderr: stderr || (err && err.message) || "" });
+      });
+  });
+}
+async function stopDept(name) {
+  return pm2Exec("stop", `tg-*-${name}`);
+}
+
+app.post("/depts/:name/restart", async (req, res) => {
+  const { name } = req.params;
+  await restartDept(name);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 restart")}`);
+});
+app.post("/depts/:name/start", async (req, res) => {
+  const { name } = req.params;
+  await startDept(name);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 start")}`);
+});
+app.post("/depts/:name/stop", async (req, res) => {
+  const { name } = req.params;
+  await stopDept(name);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 stop")}`);
+});
+
+// ─── 刪部門 ──────────────────────────────────
+app.post("/depts/:name/delete", async (req, res) => {
+  const { name } = req.params;
+  const v = validateDeptName(name);
+  if (!v.ok) return res.status(400).send(v.reason);
+  try {
+    const { DEPTS_DIR: DD } = require("../scripts/new-dept");
+    const src = path.join(DD, name);
+    if (!fs.existsSync(src)) return res.status(404).send("部門不存在");
+    // 先停 PM2
+    await pm2Exec("delete", `tg-*-${name}`);
+    // 搬到 .trash
+    const trashDir = path.join(DD, `.trash-${Date.now()}-${name}`);
+    fs.renameSync(src, trashDir);
+    // 重生 ecosystem
+    await regenerateEcosystem();
+    console.log(`[delete] ${name} → ${trashDir}`);
+    res.redirect(`/depts?deleted=${name}`);
+  } catch (e) {
+    console.error("delete dept failed:", e);
+    res.status(500).send(`刪除失敗: ${e.message}`);
+  }
+});
+
+// ─── TG 登入 wizard ─────────────────────────────
+const tgLogin = require("./lib/tg-login");
+
+function renderDeptLogin(res, name, opts = {}, status = 200) {
+  const dept = loadDeptForEdit(name);
+  if (!dept) return res.status(404).send(`部門不存在: ${name}`);
+  res.status(status).render("pages/dept-login", {
+    title: `TG 登入 · ${name}`,
+    active: "depts",
+    deptName: name,
+    outputChat: dept.config.outputChatName || "",
+    step: opts.step || "phone",
+    phone: opts.phone || null,
+    error: opts.error || null,
+    bytes: opts.bytes || null,
+  });
+}
+
+app.get("/depts/:name/login", (req, res) => {
+  const name = req.params.name;
+  const status = tgLogin.getStatus(name);
+  if (status.status === "awaiting_code") {
+    return renderDeptLogin(res, name, { step: "code", phone: status.phone });
+  }
+  if (status.status === "awaiting_password") {
+    return renderDeptLogin(res, name, { step: "password", phone: status.phone });
+  }
+  renderDeptLogin(res, name, { step: "phone" });
+});
+
+app.post("/depts/:name/login/phone", async (req, res) => {
+  const name = req.params.name;
+  const phone = String(req.body.phone || "").trim();
+  try {
+    await tgLogin.startLogin(name, phone);
+    renderDeptLogin(res, name, { step: "code", phone });
+  } catch (e) {
+    console.error("[tg-login/phone]", e.message);
+    renderDeptLogin(res, name, { step: "phone", phone, error: e.message }, 400);
+  }
+});
+
+app.post("/depts/:name/login/code", async (req, res) => {
+  const name = req.params.name;
+  const code = String(req.body.code || "").trim();
+  try {
+    const result = await tgLogin.submitCode(name, code);
+    if (result.status === "done") {
+      return renderDeptLogin(res, name, { step: "done", bytes: result.bytes });
+    }
+    // 需要 2FA
+    renderDeptLogin(res, name, { step: "password" });
+  } catch (e) {
+    console.error("[tg-login/code]", e.message);
+    const status = tgLogin.getStatus(name);
+    const step = status.status === "awaiting_password" ? "password" : "code";
+    renderDeptLogin(res, name, { step, phone: status.phone, error: e.message }, 400);
+  }
+});
+
+app.post("/depts/:name/login/password", async (req, res) => {
+  const name = req.params.name;
+  const password = String(req.body.password || "");
+  try {
+    const result = await tgLogin.submitPassword(name, password);
+    renderDeptLogin(res, name, { step: "done", bytes: result.bytes });
+  } catch (e) {
+    console.error("[tg-login/password]", e.message);
+    renderDeptLogin(res, name, { step: "password", error: e.message }, 400);
+  }
+});
+
+app.post("/depts/:name/login/abort", (req, res) => {
+  const name = req.params.name;
+  tgLogin.abort(name);
+  res.redirect(`/depts/${name}/login`);
+});
+app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
 app.get("/logs",                 placeholder("日誌", "即時 pm2 logs 串流", "v0.3 實作", "留到 v0.3。屆時可用 WebSocket 串 pm2 logs，按部門篩選 + 搜尋關鍵字。"));
 app.get("/logs/:name",           placeholder("部門日誌", "單部門 pm2 logs", "v0.3 實作", "留到 v0.3。"));
 app.get("/settings",             placeholder("系統設置", "用戶管理 / 系統配置", "v0.3 實作", "留到 v0.3。屆時管理員可新增/移除 Web 用戶、修改系統級配置、輪換 TG API / Google SA。"));
