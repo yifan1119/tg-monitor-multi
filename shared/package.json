@@ -1,0 +1,22 @@
+{
+  "name": "tg-monitor-multi-shared",
+  "version": "0.2.0-mvp",
+  "description": "Shared runtime for all tg-monitor-multi department processes",
+  "private": true,
+  "scripts": {
+    "listener": "node listener.js",
+    "system-events": "node system_events.js",
+    "sheet-writer": "node sheet_writer.js",
+    "title-sheet-writer": "node title_sheet_writer.js",
+    "review-report-writer": "node review_report_writer.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "googleapis": "^171.4.0",
+    "input": "^1.0.1",
+    "telegram": "^2.26.22"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

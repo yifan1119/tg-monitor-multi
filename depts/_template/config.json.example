@@ -1,0 +1,48 @@
+{
+  "_comment": "部門配置模板。新增部門時複製本檔到 depts/<dept_name>/config.json 並填入實際值。",
+
+  "_listener_section": "── listener.js 用 ──",
+  "listenMode": "all-groups",
+  "listenChats": [],
+  "outputChatName": "<中轉群名稱，如 悦达-业务审查>",
+  "keywords": [
+    "到期",
+    "续费",
+    "下架",
+    "上架",
+    "暂停",
+    "地址",
+    "打款",
+    "欠费",
+    "对账",
+    "不跑了"
+  ],
+  "summaryMaxLength": 120,
+  "cooldownMs": 600000,
+  "titleEventCooldownMs": 60000,
+
+  "_sheet_writer_section": "── sheet_writer.js 用 ──",
+  "inputChatName": "<中轉群名稱，跟 outputChatName 一致>",
+  "spreadsheetId": "<Google Sheet ID>",
+  "sheetName": "<工作表分頁名稱，如 关键词提醒yd>",
+  "backfillIntervalMs": 60000,
+  "backfillLimit": 30,
+  "headerMap": {
+    "sourceGroup": "来源群",
+    "senderName": "发送人",
+    "keyword": "命中关键词",
+    "messageContent": "消息内容",
+    "createdAt": "登记时间"
+  },
+
+  "_system_events_section": "── system_events.js 用 ──",
+  "eventTypes": [
+    "group-title-changed"
+  ],
+  "retryIntervalMs": 60000,
+  "retryLookbackMs": 600000,
+  "maxRetryCount": 10,
+  "backfillWindowMs": 600000,
+  "historyLookbackMs": 604800000,
+  "titleMergeWindowMs": 60000
+}

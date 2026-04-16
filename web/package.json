@@ -1,0 +1,18 @@
+{
+  "name": "tg-monitor-multi-web",
+  "version": "0.2.0-mvp",
+  "description": "Web dashboard for tg-monitor-multi",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "ejs": "^3.1.10",
+    "pm2": "^6.0.14"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

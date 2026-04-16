@@ -1,0 +1,46 @@
+# === 敏感檔（絕對不進 git） ===
+# TG 登入憑證（洩漏 = 帳號被接管）
+**/session.txt
+
+# 環境變數（TG_API_ID / TG_API_HASH）
+**/.env
+!**/.env.example
+
+# Google Cloud 服務帳號私鑰
+**/google-service-account.json
+!**/google-service-account.json.example
+
+# Web 用戶資料（bcrypt hash 但還是最好不進 git）
+data/users.json
+data/system.json
+data/sessions-backup/
+
+# === 運行時狀態 ===
+**/state/
+**/event_history.jsonl
+**/pending_title_events.json
+**/*.log
+**/*.log.*
+
+# === 實際部門（跑起來才會有，不進 template repo） ===
+depts/*
+!depts/_template/
+!depts/.gitkeep
+
+# === Node ===
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# === PM2 ===
+.pm2/
+ecosystem.config.js   # 運行時生成，不進 git
+
+# === 本地暫存 ===
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+*.tmp

@@ -1,0 +1,20 @@
+{
+  "name": "tg-monitor-multi",
+  "version": "0.2.0-mvp-dev",
+  "description": "多部門 Telegram 群組監控系統模板（Node.js + PM2）— 一台 VPS 可承載 N 個部門",
+  "private": true,
+  "license": "UNLICENSED",
+  "workspaces": [
+    "shared",
+    "web"
+  ],
+  "scripts": {
+    "web": "cd web && npm start",
+    "web:dev": "cd web && npm run dev",
+    "new-dept": "bash scripts/new-dept.sh",
+    "install:all": "cd shared && npm install && cd ../web && npm install"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
