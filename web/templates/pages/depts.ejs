@@ -1,61 +1,85 @@
 <div class="page-header">
   <div>
     <div class="page-title">部門管理</div>
-    <div class="page-subtitle"><%= depts.length %> 個部門 · 共 <%= procs.length %> 個進程</div>
+    <div class="page-subtitle">
+      <% if (depts.length === 0) { %>
+        還沒有部門
+      <% } else { %>
+        <%= depts.length %> 個部門 · 共 <%= procs.length %> 個進程
+      <% } %>
+    </div>
   </div>
-  <div>
-    <a href="/depts/new" class="btn">＋ 新增部門</a>
-  </div>
+  <div><a href="/depts/new" class="btn">＋ 新增部門</a></div>
 </div>
 
-<div class="panel">
-  <div class="panel-title">部門清單</div>
-  <div style="overflow-x: auto;">
-    <table>
-      <thead>
-        <tr>
-          <th>部門</th>
-          <th>中轉群</th>
-          <th>Sheet 分頁</th>
-          <th>Listener</th>
-          <th>Sys-Events</th>
-          <th>Sheet-Writer</th>
-          <th>Session</th>
-          <th>24h 命中</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% depts.forEach(d => {
-          const listener    = procs.find(p => p.dept === d.name && p.kind === 'listener');
-          const systemEv    = procs.find(p => p.dept === d.name && p.kind === 'system-events');
-          const sheetWriter = procs.find(p => p.dept === d.name && p.kind === 'sheet-writer');
-          const dotFor = p => `<span class="dot ${p && p.status === 'online' ? 'green' : p && p.status === 'stopped' ? 'yellow' : 'red'}"></span>`;
-        %>
-          <tr>
-            <td>
-              <strong><%= d.name %></strong><br>
-              <span style="color: var(--text-dim); font-size: 0.8rem;"><%= d.display %></span>
-            </td>
-            <td><%= d.outputChat %></td>
-            <td><%= d.sheetTab %></td>
-            <td><%- dotFor(listener) %><%= listener ? listener.status : 'missing' %></td>
-            <td><%- dotFor(systemEv) %><%= systemEv ? systemEv.status : 'missing' %></td>
-            <td><%- dotFor(sheetWriter) %><%= sheetWriter ? sheetWriter.status : 'missing' %></td>
-            <td>
-              <% if (d.sessionOk) { %>
-                <span class="dot green"></span>OK
-              <% } else { %>
-                <span class="dot yellow"></span><a href="/depts/<%= d.name %>/login" style="color:var(--yellow);">需重登</a>
-              <% } %>
-            </td>
-            <td><strong style="color:var(--accent);"><%= d.hit24h %></strong></td>
-            <td>
-              <a href="/depts/<%= d.name %>/edit" class="btn ghost" style="padding: 0.35rem 0.75rem; font-size: 0.7rem;">編輯</a>
-            </td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
+<% if (depts.length === 0) { %>
+
+  <!-- ═══ 空狀態 ═══ -->
+  <div class="panel" style="text-align: center; padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.4;">📁</div>
+    <div style="font-size: 1rem; color: var(--text-1); margin-bottom: 0.5rem;">
+      這台 VPS 還沒有任何部門
+    </div>
+    <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem;">
+      新增的每個部門會在 <code style="color: var(--accent);">depts/&lt;name&gt;/</code> 建立獨立目錄<br>
+      每個部門各自擁有 TG 號 / 中轉群 / Google Sheet
+    </div>
+    <a href="/depts/new" class="btn">＋ 新增第一個部門</a>
   </div>
-</div>
+
+<% } else { %>
+
+  <!-- ═══ 有部門：表格 ═══ -->
+  <div class="panel">
+    <div class="panel-title">部門清單</div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>部門</th>
+            <th>中轉群</th>
+            <th>Sheet 分頁</th>
+            <th>Listener</th>
+            <th>Sys-Events</th>
+            <th>Sheet-Writer</th>
+            <th>Session</th>
+            <th>24h 命中</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% depts.forEach(d => {
+            const listener    = procs.find(p => p.dept === d.name && p.kind === 'listener');
+            const systemEv    = procs.find(p => p.dept === d.name && p.kind === 'system-events');
+            const sheetWriter = procs.find(p => p.dept === d.name && p.kind === 'sheet-writer');
+            const dotFor = p => `<span class="dot ${p && p.status === 'online' ? 'green' : p && p.status === 'stopped' ? 'yellow' : 'red'}"></span>`;
+          %>
+            <tr>
+              <td>
+                <strong><%= d.name %></strong><br>
+                <span style="color: var(--text-dim); font-size: 0.8rem;"><%= d.display %></span>
+              </td>
+              <td><%= d.outputChat %></td>
+              <td><%= d.sheetTab %></td>
+              <td><%- dotFor(listener) %><%= listener ? listener.status : '—' %></td>
+              <td><%- dotFor(systemEv) %><%= systemEv ? systemEv.status : '—' %></td>
+              <td><%- dotFor(sheetWriter) %><%= sheetWriter ? sheetWriter.status : '—' %></td>
+              <td>
+                <% if (d.sessionOk) { %>
+                  <span class="dot green"></span>OK
+                <% } else { %>
+                  <span class="dot yellow"></span><a href="/depts/<%= d.name %>/login" style="color:var(--yellow);">需登入</a>
+                <% } %>
+              </td>
+              <td><strong style="color:var(--accent);"><%= d.hit24h %></strong></td>
+              <td>
+                <a href="/depts/<%= d.name %>/edit" class="btn ghost" style="padding: 0.35rem 0.75rem; font-size: 0.7rem;">編輯</a>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+<% } %>

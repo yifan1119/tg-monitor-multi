@@ -1,0 +1,72 @@
+<div class="page-header">
+  <div>
+    <div class="page-title">新增部門</div>
+    <div class="page-subtitle">建立一個新的部門目錄 · 每個部門各自獨立</div>
+  </div>
+  <div>
+    <a href="/depts" class="btn ghost">返回列表</a>
+  </div>
+</div>
+
+<form action="/depts/new" method="POST">
+  <div class="panel">
+    <div class="panel-title">基本資訊</div>
+
+    <div class="form-group">
+      <label>部門代號 (dept_name)</label>
+      <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" required>
+      <div class="hint">小寫英文 + 連字號，2-32 字符。會作為目錄名 <code>depts/&lt;name&gt;/</code> 和 PM2 進程名</div>
+    </div>
+
+    <div class="form-group">
+      <label>部門名稱（顯示用）</label>
+      <input type="text" name="dept_display" placeholder="例: 悦达" required>
+      <div class="hint">Dashboard 上顯示的中文名</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">TG 群設定</div>
+
+    <div class="form-group">
+      <label>中轉群名稱 (outputChatName)</label>
+      <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" required>
+      <div class="hint">
+        listener 命中關鍵字後會推訊息到這個群、sheet_writer 訂閱這個群。<br>
+        <strong>TG 真人號必須先手動加入這個群</strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Google Sheet 設定</div>
+
+    <div class="form-group">
+      <label>Spreadsheet ID</label>
+      <input type="text" name="spreadsheet_id" placeholder="從 Sheet URL 取: /d/<這段>/edit" required>
+      <div class="hint">打開 Sheet 看網址 <code>https://docs.google.com/spreadsheets/d/&lt;ID&gt;/edit</code> 的 ID 段。Sheet 必須把 Google SA email 加為「編輯者」</div>
+    </div>
+
+    <div class="form-group">
+      <label>工作表分頁名稱</label>
+      <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" required>
+      <div class="hint">Sheet 底部 tab 的名字。分頁要預先建好</div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+    <a href="/depts" class="btn ghost">取消</a>
+    <button type="submit" class="btn">建立部門目錄</button>
+  </div>
+</form>
+
+<div style="margin-top: 2rem; padding: 1rem 1.25rem; background: rgba(0, 230, 255, 0.05); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.85rem; color: var(--text-1); line-height: 1.7;">
+  <strong style="color: var(--accent);">📝 提交後會發生什麼</strong>
+  <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+    <li>在 <code>depts/&lt;name&gt;/</code> 建立新目錄</li>
+    <li>從 <code>depts/_template/</code> 生成 <code>config.json</code>（填好你提交的值）</li>
+    <li>生成 <code>.env</code>（TG_API_ID/HASH 從系統設置繼承）</li>
+    <li>重新生成 <code>ecosystem.config.js</code></li>
+    <li>返回部門列表 — 新部門會出現，但進程還沒起（需手動登入 TG + <code>pm2 start</code>）</li>
+  </ol>
+</div>
