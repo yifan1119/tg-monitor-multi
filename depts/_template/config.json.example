@@ -1,5 +1,6 @@
 {
   "_comment": "部門配置模板。新增部門時複製本檔到 depts/<dept_name>/config.json 並填入實際值。",
+  "configVersion": 1,
 
   "_listener_section": "── listener.js 用 ──",
   "listenMode": "all-groups",

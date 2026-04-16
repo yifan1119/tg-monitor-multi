@@ -37,6 +37,9 @@ yarn-error.log*
 .pm2/
 ecosystem.config.js   # 運行時生成，不進 git
 
+# === 升級備份（每次 update.sh 自動生成） ===
+.backups/
+
 # === 本地暫存 ===
 .DS_Store
 *.swp

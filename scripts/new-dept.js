@@ -101,6 +101,7 @@ async function createDept({
   }
 
   // 填入實際值
+  cleaned.configVersion = cleaned.configVersion || 1; // schema 版號 (為 migrate 腳本預留)
   cleaned.display = display;
   cleaned.outputChatName = outputChat;
   cleaned.inputChatName = outputChat; // listener 推到這、sheet_writer 訂閱這
