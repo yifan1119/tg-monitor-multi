@@ -1,3 +1,4 @@
+<% const fd = locals.formData || {}; %>
 <div class="page-header">
   <div>
     <div class="page-title">新增部門</div>
@@ -8,20 +9,29 @@
   </div>
 </div>
 
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 新增失敗</div>
+    <div style="color: var(--text-0); font-size: 0.9rem;"><%= error %></div>
+    <div style="color: var(--text-dim); font-size: 0.8rem; margin-top: 0.5rem;">請修正後重新提交。原本填的值已保留。</div>
+  </div>
+<% } %>
+
 <form action="/depts/new" method="POST">
   <div class="panel">
     <div class="panel-title">基本資訊</div>
 
     <div class="form-group">
       <label>部門代號 (dept_name)</label>
-      <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" required>
-      <div class="hint">小寫英文 + 連字號，2-32 字符。會作為目錄名 <code>depts/&lt;name&gt;/</code> 和 PM2 進程名</div>
+      <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" value="<%= fd.dept_name || '' %>" required
+        title="小寫字母開頭, 2-32 字符, 只含 a-z / 0-9 / -">
+      <div class="hint"><strong style="color: var(--yellow);">只能用小寫英文+數字+連字號</strong>（不能填中文！），2-32 字符。作為目錄名 <code>depts/&lt;name&gt;/</code> 和 PM2 進程名</div>
     </div>
 
     <div class="form-group">
-      <label>部門名稱（顯示用）</label>
-      <input type="text" name="dept_display" placeholder="例: 悦达" required>
-      <div class="hint">Dashboard 上顯示的中文名</div>
+      <label>部門名稱（顯示用，可中文）</label>
+      <input type="text" name="dept_display" placeholder="例: 悦达" value="<%= fd.dept_display || '' %>" required>
+      <div class="hint">Dashboard 上顯示的名稱，可用中文</div>
     </div>
   </div>
 
@@ -30,7 +40,7 @@
 
     <div class="form-group">
       <label>中轉群名稱 (outputChatName)</label>
-      <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" required>
+      <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" value="<%= fd.output_chat || '' %>" required>
       <div class="hint">
         listener 命中關鍵字後會推訊息到這個群、sheet_writer 訂閱這個群。<br>
         <strong>TG 真人號必須先手動加入這個群</strong>
@@ -43,13 +53,13 @@
 
     <div class="form-group">
       <label>Spreadsheet ID</label>
-      <input type="text" name="spreadsheet_id" placeholder="從 Sheet URL 取: /d/<這段>/edit" required>
+      <input type="text" name="spreadsheet_id" placeholder="從 Sheet URL 取: /d/<這段>/edit" value="<%= fd.spreadsheet_id || '' %>" required>
       <div class="hint">打開 Sheet 看網址 <code>https://docs.google.com/spreadsheets/d/&lt;ID&gt;/edit</code> 的 ID 段。Sheet 必須把 Google SA email 加為「編輯者」</div>
     </div>
 
     <div class="form-group">
       <label>工作表分頁名稱</label>
-      <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" required>
+      <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" value="<%= fd.sheet_tab || '' %>" required>
       <div class="hint">Sheet 底部 tab 的名字。分頁要預先建好</div>
     </div>
   </div>

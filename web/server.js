@@ -93,26 +93,45 @@ app.post("/login", (_req, res) => {
 app.get("/logout", (_req, res) => res.redirect("/login"));
 
 // ─── Setup Wizard ────────────────────────────────────
-app.get("/setup", (_req, res) => {
-  res.render("pages/setup", {
+function renderSetup(res, { error = null, formData = {} } = {}, status = 200) {
+  res.status(status).render("pages/setup", {
     title: "首次設置",
     showNav: false,
     active: "",
+    error,
+    formData,
   });
+}
+
+app.get("/setup", (_req, res) => {
+  renderSetup(res);
 });
 
 app.post("/setup", async (req, res) => {
-  // 第 1 批: 真的寫 data/system.json + 建第一個部門目錄 + 重新生成 ecosystem
+  // 第 1 批: 先驗證 → 通過才寫檔 + 建部門 + 重生 ecosystem
   const {
     admin_username, admin_password,
     tg_api_id, tg_api_hash,
     dept_name, dept_display, output_chat, spreadsheet_id, sheet_tab,
   } = req.body;
 
+  const formData = {
+    admin_username, tg_api_id, tg_api_hash,
+    dept_name, dept_display, output_chat, spreadsheet_id, sheet_tab,
+  };
+
   try {
+    // 0. 若有填部門, 先驗 dept_name (避免 system.json 被寫後才發現錯)
+    if (dept_name) {
+      const v = validateDeptName(dept_name.trim());
+      if (!v.ok) {
+        return renderSetup(res, { error: `部門代號: ${v.reason}`, formData }, 400);
+      }
+    }
+
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-    // 1. 寫 system.json（未加密保存，MVP 簡化；v0.6 加 bcrypt）
+    // 1. 寫 system.json
     const sys = fs.existsSync(SYSTEM_JSON)
       ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8"))
       : {};
@@ -120,7 +139,6 @@ app.post("/setup", async (req, res) => {
       setupComplete: true,
       setupAt: new Date().toISOString(),
       adminUsername: admin_username || "admin",
-      // MVP: 密碼先明文存（v0.6 改 bcrypt）
       adminPassword: admin_password || null,
       tgApiId: tg_api_id || sys.tgApiId || "",
       tgApiHash: tg_api_hash || sys.tgApiHash || "",
@@ -147,13 +165,7 @@ app.post("/setup", async (req, res) => {
     res.redirect("/dashboard?setup=done" + (createdDept ? `&dept=${createdDept.name}` : ""));
   } catch (e) {
     console.error("setup failed:", e);
-    res.status(400).render("pages/placeholder", {
-      title: "設置失敗",
-      subtitle: "",
-      stage: "",
-      description: `原因: ${e.message}. 請返回重試。`,
-      active: "",
-    });
+    renderSetup(res, { error: e.message, formData }, 400);
   }
 });
 
@@ -211,15 +223,22 @@ function placeholder(title, subtitle, stage, description) {
 }
 
 // ─── 新增部門（GET 表單 + POST 建目錄）────────────────
-app.get("/depts/new", (_req, res) => {
-  res.render("pages/dept-new", {
+function renderDeptNew(res, { error = null, formData = {} } = {}, status = 200) {
+  res.status(status).render("pages/dept-new", {
     title: "新增部門",
     active: "depts",
+    error,
+    formData,
   });
+}
+
+app.get("/depts/new", (_req, res) => {
+  renderDeptNew(res);
 });
 
 app.post("/depts/new", async (req, res) => {
   const { dept_name, dept_display, output_chat, spreadsheet_id, sheet_tab } = req.body;
+  const formData = { dept_name, dept_display, output_chat, spreadsheet_id, sheet_tab };
   try {
     const sys = fs.existsSync(SYSTEM_JSON)
       ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8"))
@@ -237,13 +256,7 @@ app.post("/depts/new", async (req, res) => {
     res.redirect(`/depts?created=${result.name}`);
   } catch (e) {
     console.error("create dept failed:", e);
-    res.status(400).render("pages/placeholder", {
-      title: "新增部門失敗",
-      subtitle: "",
-      stage: "",
-      description: `原因: ${e.message}`,
-      active: "depts",
-    });
+    renderDeptNew(res, { error: e.message, formData }, 400);
   }
 });
 app.get("/depts/:name/edit",     placeholder("編輯部門", "修改 config.json", "D5 實作", "預計 D5 (4/20) 完成。屆時可線上編輯中轉群名 / Spreadsheet ID / 關鍵字列表 / 冷卻時間等。保存即重啟對應進程。"));
