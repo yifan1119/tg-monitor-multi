@@ -1,0 +1,89 @@
+<% /* setup wizard — 首次設置。MVP 簡版，D5 會加 AJAX 驗證 */ %>
+<div class="page-header">
+  <div>
+    <div class="page-title">首次設置精靈</div>
+    <div class="page-subtitle">填完 4 節設置即可開始第一個部門</div>
+  </div>
+</div>
+
+<div class="wizard-steps">
+  <div class="wizard-step active">1 · 管理員</div>
+  <div class="wizard-step">2 · TG API</div>
+  <div class="wizard-step">3 · Google SA</div>
+  <div class="wizard-step">4 · 第一個部門</div>
+</div>
+
+<form action="/setup" method="POST">
+  <div class="panel">
+    <div class="panel-title">1. Web 後台管理員帳號</div>
+    <div class="form-group">
+      <label>用戶名</label>
+      <input type="text" name="admin_username" placeholder="admin" required>
+      <div class="hint">日後登入 Web 後台用</div>
+    </div>
+    <div class="form-group">
+      <label>密碼</label>
+      <input type="password" name="admin_password" required>
+      <div class="hint">至少 8 字元，建議混用大小寫+數字</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">2. Telegram API 認證</div>
+    <div class="form-group">
+      <label>TG_API_ID</label>
+      <input type="text" name="tg_api_id" placeholder="例: 31462192" required>
+      <div class="hint">從 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent);">my.telegram.org/apps</a> 取得</div>
+    </div>
+    <div class="form-group">
+      <label>TG_API_HASH</label>
+      <input type="text" name="tg_api_hash" placeholder="32 位十六進制" required>
+      <div class="hint">同一台 VPS 上的多個部門可共用這組</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">3. Google Service Account</div>
+    <div class="form-group">
+      <label>上傳 google-service-account.json</label>
+      <input type="file" name="google_sa" accept="application/json">
+      <div class="hint">到 Google Cloud Console → IAM → Service Accounts 下載。所有部門共用這一把鑰匙</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">4. 第一個部門</div>
+    <div class="form-group">
+      <label>部門代號</label>
+      <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" required>
+      <div class="hint">小寫英文 + 連字號, 2-32 字符</div>
+    </div>
+    <div class="form-group">
+      <label>部門名稱</label>
+      <input type="text" name="dept_display" placeholder="例: 悦达" required>
+    </div>
+    <div class="form-group">
+      <label>中轉群名稱 (outputChatName)</label>
+      <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" required>
+      <div class="hint">TG 帳號要先加入這個群</div>
+    </div>
+    <div class="form-group">
+      <label>Google Sheet ID</label>
+      <input type="text" name="spreadsheet_id" placeholder="從 Sheet URL 取: /d/<這段>/edit" required>
+      <div class="hint">Sheet 要把 SA email 加為「編輯者」</div>
+    </div>
+    <div class="form-group">
+      <label>工作表分頁名稱</label>
+      <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" required>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+    <button type="submit" class="btn">完成設置 · 啟動第一個部門</button>
+  </div>
+</form>
+
+<div style="margin-top: 2rem; padding: 1rem; background: rgba(255, 201, 64, 0.08); border-left: 3px solid var(--yellow); border-radius: 0 6px 6px 0; font-size: 0.85rem; color: var(--text-1);">
+  <strong style="color: var(--yellow);">⚠️ MVP 預覽模式</strong>
+  — 此精靈目前為 UI 骨架，提交不會實際執行（D5 完成後才會真正寫 .env / 建部門 / 觸發 TG 登入）
+</div>

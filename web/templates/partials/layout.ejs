@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> · tg-monitor-multi</title>
+  <link rel="stylesheet" href="/css/neon.css">
+</head>
+<body>
+  <div class="app">
+    <% if (typeof showNav === 'undefined' || showNav) { %>
+      <header class="topbar">
+        <a href="/dashboard" style="text-decoration:none;">
+          <div class="brand">
+            TG-MONITOR-MULTI
+            <span class="version">v<%= version %></span>
+          </div>
+        </a>
+        <nav class="nav">
+          <a href="/dashboard" class="<%= active === 'dashboard' ? 'active' : '' %>">總覽</a>
+          <a href="/depts"     class="<%= active === 'depts' ? 'active' : '' %>">部門</a>
+          <a href="/logs"      class="<%= active === 'logs' ? 'active' : '' %>">日誌</a>
+          <a href="/settings"  class="<%= active === 'settings' ? 'active' : '' %>">設置</a>
+          <a href="/logout" style="color:var(--text-dim);">登出</a>
+        </nav>
+      </header>
+    <% } %>
+
+    <main class="main">
+      <%- body %>
+    </main>
+
+    <footer class="footer">
+      TG-MONITOR-MULTI · v<%= version %> · <%= mode === 'mock' ? 'MOCK 預覽模式' : 'LIVE' %>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/yifan1119/tg-monitor-multi" style="color:var(--text-dim);">GitHub</a>
+    </footer>
+  </div>
+</body>
+</html>

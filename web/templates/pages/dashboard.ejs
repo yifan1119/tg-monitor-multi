@@ -1,0 +1,108 @@
+<div class="page-header">
+  <div>
+    <div class="page-title">總覽 · Dashboard</div>
+    <div class="page-subtitle">全系統即時狀態 · 最後更新 <%= new Date().toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) %></div>
+  </div>
+  <div>
+    <a href="/depts/new" class="btn">＋ 新增部門</a>
+  </div>
+</div>
+
+<!-- KPI 卡 -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-label">部門數</div>
+    <div class="kpi-value"><%= summary.deptCount %><span class="kpi-unit">個</span></div>
+  </div>
+  <div class="kpi green">
+    <div class="kpi-label">線上進程</div>
+    <div class="kpi-value"><%= summary.procOnline %><span class="kpi-unit">/ <%= summary.procTotal %></span></div>
+  </div>
+  <div class="kpi <%= summary.procOffline > 0 ? 'red' : '' %>">
+    <div class="kpi-label">離線進程</div>
+    <div class="kpi-value"><%= summary.procOffline %><span class="kpi-unit">個</span></div>
+  </div>
+  <div class="kpi <%= summary.sessionBroken > 0 ? 'yellow' : 'green' %>">
+    <div class="kpi-label">Session 異常</div>
+    <div class="kpi-value"><%= summary.sessionBroken %><span class="kpi-unit">個</span></div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">24h 命中關鍵字</div>
+    <div class="kpi-value"><%= summary.totalHit24h %><span class="kpi-unit">次</span></div>
+  </div>
+</div>
+
+<!-- 部門狀態卡 -->
+<div class="panel">
+  <div class="panel-title">部門狀態</div>
+  <div class="dept-grid">
+    <% depts.forEach(d => {
+      const deptProcs = procs.filter(p => p.dept === d.name);
+      const allOn = deptProcs.length > 0 && deptProcs.every(p => p.status === 'online');
+      const someOff = deptProcs.some(p => p.status !== 'online');
+      const dotClass = !d.sessionOk ? 'yellow' : allOn ? 'green' : someOff ? 'red' : 'gray';
+    %>
+      <a href="/depts/<%= d.name %>" class="dept-card">
+        <div class="name"><span class="dot <%= dotClass %>"></span><%= d.name %></div>
+        <div class="display"><%= d.display %> / <%= d.outputChat %></div>
+        <div class="meta">
+          <span>24h 命中: <strong style="color:var(--accent);"><%= d.hit24h %></strong></span>
+          <span><%= d.lastMsg %></span>
+        </div>
+      </a>
+    <% }); %>
+  </div>
+</div>
+
+<!-- 最近告警 -->
+<div class="panel">
+  <div class="panel-title">最近告警</div>
+  <% if (alerts.length === 0) { %>
+    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">目前無告警</div>
+  <% } else { %>
+    <ul class="alert-list">
+      <% alerts.forEach(a => { %>
+        <li class="<%= a.level %>">
+          <span class="ts"><%= a.ts %></span>
+          <span class="dept"><%= a.dept %></span>
+          <span><%= a.msg %></span>
+        </li>
+      <% }); %>
+    </ul>
+  <% } %>
+</div>
+
+<!-- 進程細節表 -->
+<div class="panel">
+  <div class="panel-title">PM2 進程狀態 (<%= procs.length %>)</div>
+  <div style="overflow-x: auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>進程</th>
+          <th>部門</th>
+          <th>類型</th>
+          <th>狀態</th>
+          <th>CPU</th>
+          <th>記憶體</th>
+          <th>重啟</th>
+          <th>執行時間</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% procs.forEach(p => { %>
+          <tr>
+            <td><strong><%= p.name %></strong></td>
+            <td><%= p.dept %></td>
+            <td><%= p.kind %></td>
+            <td class="status-<%= p.status %>">● <%= p.status %></td>
+            <td><%= p.cpu.toFixed(1) %>%</td>
+            <td><%= p.mem %> MB</td>
+            <td><%= p.restarts %></td>
+            <td><%= p.uptime %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>

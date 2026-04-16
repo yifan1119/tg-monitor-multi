@@ -1,0 +1,41 @@
+<% /* login page — 獨立佈局，不用 topbar */ %>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登入 · tg-monitor-multi</title>
+  <link rel="stylesheet" href="/css/neon.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="logo">TG·MONITOR</div>
+      <div class="subtitle">MULTI · v<%= version %> · 加密連線</div>
+
+      <form action="/login" method="POST">
+        <div class="form-group">
+          <label>帳號</label>
+          <input type="text" name="username" required autofocus autocomplete="username" placeholder="admin">
+        </div>
+        <div class="form-group">
+          <label>密碼</label>
+          <input type="password" name="password" required autocomplete="current-password" placeholder="••••••">
+        </div>
+
+        <% if (locals.error) { %>
+          <div style="color: var(--red); font-size: 0.85rem; margin-bottom: 1rem; text-align: center;">
+            <%= error %>
+          </div>
+        <% } %>
+
+        <button type="submit" class="btn" style="width: 100%;">登入</button>
+      </form>
+
+      <div style="text-align: center; margin-top: 2rem; font-size: 0.75rem; color: var(--text-dim);">
+        首次設置？<a href="/setup" style="color: var(--accent);">進入設置嚮導</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

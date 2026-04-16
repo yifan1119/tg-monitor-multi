@@ -8,8 +8,9 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
     "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "express-ejs-layouts": "^2.5.1",
     "pm2": "^6.0.14"
   },
   "engines": {
