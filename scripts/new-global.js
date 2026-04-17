@@ -23,9 +23,9 @@ const GLOBAL_DIR = path.join(ROOT, "global");
 const TEMPLATE_DIR = path.join(GLOBAL_DIR, "_template");
 const SYSTEM_JSON = path.join(ROOT, "data", "system.json");
 
-// v0.4: title-sheet-writer 已合并到 worker.js 中 (每个部门 worker 自己写群名变更 Sheet),
-// 只保留 review-report-writer (跨部门闭环配对需要全局订阅)
-const KINDS = ["review-report-writer"];
+// v0.5.1: 全局进程砍光. 只做关键字监控 + 群名变更 (都在 worker 里).
+// 跨部门审查报告汇总功能移除 (不需要).
+const KINDS = [];
 
 function readJsonSafe(p) {
   try { return JSON.parse(fs.readFileSync(p, "utf8")); } catch { return null; }

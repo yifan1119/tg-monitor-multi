@@ -1235,54 +1235,6 @@ app.listen(PORT, () => {
   })();
 });
 // ─── /review + /ops 放最后 (放前面会 ReferenceError 因为依赖在后面声明) ───
-// ─── /review — 审查报告独立页 ─────────────────────
-const STATUS_LABEL_LOCAL = {
-  "online": "运行中", "stopped": "已停止", "errored": "出错",
-  "waiting restart": "启动失败 (重试中)", "launching": "启动中", "one-launch-status": "启动中",
-};
-
-app.get("/review", async (req, res) => {
-  const kind = "review-report-writer";
-  const g = loadGlobalForEdit(kind);
-  const procs = await dataProvider.listProcesses();
-  const proc = procs.find(p => p.name === `tg-${kind}`);
-  res.render("pages/review", {
-    title: "审查报告",
-    active: "review",
-    built: Boolean(g),
-    config: g ? g.config : {},
-    sessionOk: g ? g.sessionOk : false,
-    proc: proc || null,
-    STATUS_LABEL: STATUS_LABEL_LOCAL,
-    flash: req.query.flash || null,
-    error: req.query.error || null,
-  });
-});
-
-// /review 的各种 action 都重定向到既有 /settings/global/... 路由
-app.get("/review/edit", (_req, res) => res.redirect("/settings/global/review-report-writer/edit"));
-app.get("/review/login", (_req, res) => res.redirect("/settings/global/review-report-writer/login"));
-app.post("/review/restart", async (_req, res) => { await pm2Exec("restart", "tg-review-report-writer"); res.redirect("/review?flash=" + encodeURIComponent("已重启")); });
-app.post("/review/start", async (_req, res) => {
-  const ecoPath = path.join(ROOT, "ecosystem.config.js");
-  if (fs.existsSync(ecoPath)) await new Promise(r => execFile("pm2", ["start", ecoPath, "--only", "tg-review-report-writer"], { cwd: ROOT }, () => r()));
-  res.redirect("/review?flash=" + encodeURIComponent("已启动"));
-});
-app.post("/review/stop", async (_req, res) => { await pm2Exec("stop", "tg-review-report-writer"); res.redirect("/review?flash=" + encodeURIComponent("已停止")); });
-app.post("/review/delete", async (_req, res) => {
-  try {
-    await new Promise(r => execFile("pm2", ["delete", "tg-review-report-writer"], { cwd: ROOT }, () => r()));
-    const src = path.join(ROOT, "global", "review-report-writer");
-    if (fs.existsSync(src)) {
-      const trash = path.join(ROOT, "global", `.trash-${Date.now()}-review-report-writer`);
-      fs.renameSync(src, trash);
-    }
-    await regenerateEcosystem();
-    res.redirect("/review?flash=" + encodeURIComponent("已删除 (目录搬到 .trash)"));
-  } catch (e) {
-    res.redirect("/review?error=" + encodeURIComponent(e.message));
-  }
-});
 
 // ─── /ops — 运维页 (healthcheck + 升级 + 备份) ───────
 app.get("/ops", async (req, res) => {

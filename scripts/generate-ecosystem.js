@@ -34,11 +34,8 @@ const DEPT_KINDS = [
   { kind: "worker", script: "worker.js" },
 ];
 
-// v0.4: title-sheet-writer 砍掉 (每个 worker 自己写 titleSheet),
-// 仅保留 review-report-writer (跨部门闭环配对需要全局号订阅).
-const GLOBAL_KINDS = [
-  { kind: "review-report-writer", script: "review_report_writer.js" },
-];
+// v0.5.1: 全局进程全砍. 关键字 + 群名变更 都在 worker 里.
+const GLOBAL_KINDS = [];
 
 function buildDeptApp(deptName, kind) {
   const spec = DEPT_KINDS.find(p => p.kind === kind);
