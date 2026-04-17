@@ -1,8 +1,8 @@
 <% const HEALTHCHECK_COMMAND = "bash scripts/install-healthcheck.sh"; %>
 <div class="page-header">
   <div>
-    <div class="page-title">系統設置</div>
-    <div class="page-subtitle">全局進程 · 健康檢查 · 系統資訊</div>
+    <div class="page-title">系统设置</div>
+    <div class="page-subtitle">全局进程 · 健康检查 · 系统资讯</div>
   </div>
 </div>
 
@@ -17,19 +17,19 @@
   </div>
 <% } %>
 
-<!-- ═══ 全局進程 ═══ -->
+<!-- ═══ 全局进程 ═══ -->
 <div class="panel">
-  <div class="panel-title">全局進程 (可選, baseline 架構)</div>
+  <div class="panel-title">全局进程 (可选, baseline 架构)</div>
 
   <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    跨部門彙總用. 每個全局進程需要一個獨立 TG 號 (訂閱所有部門的中轉群或審查報告群).
-    配置複雜度比部門高, 故 <strong style="color: var(--yellow);">編輯 config 和 TG 登入建議用 CLI</strong>.
+    跨部门汇总用. 每个全局进程需要一个独立 TG 号 (订阅所有部门的中转群或审查报告群).
+    配置复杂度比部门高, 故 <strong style="color: var(--yellow);">编辑 config 和 TG 登入建议用 CLI</strong>.
   </div>
 
   <div style="overflow-x: auto;">
     <table>
       <thead>
-        <tr><th>類型</th><th>用途</th><th>建立狀態</th><th>Session</th><th>PM2 狀態</th><th>操作</th></tr>
+        <tr><th>类型</th><th>用途</th><th>建立状态</th><th>Session</th><th>PM2 状态</th><th>操作</th></tr>
       </thead>
       <tbody>
         <% globalKinds.forEach(gk => {
@@ -61,7 +61,7 @@
               <% if (p) { %>
                 <td class="status-<%= p.status %>">● <%= p.status %></td>
               <% } else { %>
-                <td style="color: var(--text-dim);">未啟動</td>
+                <td style="color: var(--text-dim);">未启动</td>
               <% } %>
               <td>
                 <form action="/settings/global/<%= gk.kind %>/restart" method="POST" style="display:inline;">
@@ -83,7 +83,7 @@
 
   <% if (globals.length > 0) { %>
     <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--text-1); line-height: 1.8;">
-      <strong style="color: var(--accent);">編輯 config / TG 登入 (在 VPS 上跑)</strong>
+      <strong style="color: var(--accent);">编辑 config / TG 登入 (在 VPS 上跑)</strong>
       <br>
       <% globals.forEach(g => { %>
         · <code style="color: var(--accent);">vi global/<%= g.kind %>/config.json</code><br>
@@ -93,20 +93,20 @@
   <% } %>
 </div>
 
-<!-- ═══ 健康檢查 ═══ -->
+<!-- ═══ 健康检查 ═══ -->
 <div class="panel">
-  <div class="panel-title">健康檢查 · Auto-Restart</div>
+  <div class="panel-title">健康检查 · Auto-Restart</div>
 
   <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    cron 每 5 分鐘掃一次所有 <code>tg-*</code> 進程, 非 online 的就 <code>pm2 restart</code>.
-    <strong style="color: var(--yellow);">listener 不自動重啟</strong>
-    (重啟會掉 TG session, 壞了通常是 session.txt 失效要人工處理).
+    cron 每 5 分钟扫一次所有 <code>tg-*</code> 进程, 非 online 的就 <code>pm2 restart</code>.
+    <strong style="color: var(--yellow);">listener 不自动重启</strong>
+    (重启会掉 TG session, 坏了通常是 session.txt 失效要人工处理).
   </div>
 
   <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; background: rgba(7, 10, 21, 0.4); border-radius: 8px;">
     <% if (healthcheck.enabled) { %>
       <div style="flex: 1;">
-        <div><span class="dot green"></span><strong style="color: var(--green);">已啟用</strong></div>
+        <div><span class="dot green"></span><strong style="color: var(--green);">已启用</strong></div>
         <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.3rem;">cron: <code><%= healthcheck.cronLine %></code></div>
       </div>
       <form action="/settings/healthcheck/remove" method="POST">
@@ -114,37 +114,37 @@
       </form>
     <% } else { %>
       <div style="flex: 1;">
-        <div><span class="dot gray"></span><strong style="color: var(--text-dim);">未啟用</strong></div>
-        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.3rem;">進程掉線不會自動重啟 (需人工 pm2 restart)</div>
+        <div><span class="dot gray"></span><strong style="color: var(--text-dim);">未启用</strong></div>
+        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.3rem;">进程掉线不会自动重启 (需人工 pm2 restart)</div>
       </div>
       <form action="/settings/healthcheck/install" method="POST">
-        <button type="submit" class="btn" style="font-size: 0.8rem;">啟用</button>
+        <button type="submit" class="btn" style="font-size: 0.8rem;">启用</button>
       </form>
     <% } %>
   </div>
 
   <% if (healthcheck.logTail && healthcheck.logTail.length > 0) { %>
     <div style="margin-top: 1rem;">
-      <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.4rem;">最近 5 條日誌:</div>
+      <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.4rem;">最近 5 条日志:</div>
       <pre style="background: rgba(7, 10, 21, 0.6); padding: 0.75rem; border-radius: 6px; font-size: 0.75rem; color: var(--text-1); overflow-x: auto; margin: 0;"><%= healthcheck.logTail %></pre>
     </div>
   <% } %>
 </div>
 
-<!-- ═══ 系統資訊 ═══ -->
+<!-- ═══ 系统资讯 ═══ -->
 <div class="panel">
-  <div class="panel-title">系統資訊</div>
+  <div class="panel-title">系统资讯</div>
   <table>
     <tbody>
       <tr><td style="color: var(--text-dim);">版本</td><td><code><%= systemInfo.version %></code></td></tr>
       <tr><td style="color: var(--text-dim);">模式</td><td><%= systemInfo.mode.toUpperCase() %></td></tr>
-      <tr><td style="color: var(--text-dim);">安裝目錄</td><td><code><%= systemInfo.root %></code></td></tr>
+      <tr><td style="color: var(--text-dim);">安装目录</td><td><code><%= systemInfo.root %></code></td></tr>
       <tr><td style="color: var(--text-dim);">Node.js</td><td><code><%= systemInfo.nodeVersion %></code></td></tr>
       <tr><td style="color: var(--text-dim);">Google SA</td><td>
         <% if (systemInfo.gsaExists) { %>
           <span class="dot green"></span><%= systemInfo.gsaEmail %>
         <% } else { %>
-          <span class="dot yellow"></span>未設置 (到 /setup 上傳)
+          <span class="dot yellow"></span>未设置 (到 /setup 上传)
         <% } %>
       </td></tr>
       <tr><td style="color: var(--text-dim);">PM2</td><td><code><%= systemInfo.pm2Available ? "可用" : "不可用 (需 npm i -g pm2)" %></code></td></tr>
@@ -152,37 +152,37 @@
   </table>
 </div>
 
-<!-- ═══ 升級 / 回滾 ═══ -->
+<!-- ═══ 升级 / 回滚 ═══ -->
 <div class="panel">
-  <div class="panel-title">升級 · 回滾 · 備份</div>
+  <div class="panel-title">升级 · 回滚 · 备份</div>
 
   <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    升級和回滾目前只能在 VPS 命令行執行 (需要 git + npm 權限, Web 不直接做).
+    升级和回滚目前只能在 VPS 命令行执行 (需要 git + npm 权限, Web 不直接做).
   </div>
 
   <table>
     <tbody>
       <tr>
-        <td style="color: var(--text-dim); width: 120px;">升級到最新版</td>
+        <td style="color: var(--text-dim); width: 120px;">升级到最新版</td>
         <td><code style="color: var(--accent);">bash scripts/update.sh</code></td>
       </tr>
       <tr>
-        <td style="color: var(--text-dim);">列備份</td>
+        <td style="color: var(--text-dim);">列备份</td>
         <td><code style="color: var(--accent);">bash scripts/list-backups.sh</code></td>
       </tr>
       <tr>
-        <td style="color: var(--text-dim);">回滾</td>
+        <td style="color: var(--text-dim);">回滚</td>
         <td><code style="color: var(--accent);">bash scripts/rollback.sh .backups/&lt;ts&gt;/</code></td>
       </tr>
       <tr>
-        <td style="color: var(--text-dim);">清舊備份</td>
+        <td style="color: var(--text-dim);">清旧备份</td>
         <td><code style="color: var(--accent);">bash scripts/clean-backups.sh</code></td>
       </tr>
     </tbody>
   </table>
   <% if (backups.count > 0) { %>
     <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.85rem;">
-      當前有 <strong style="color: var(--accent);"><%= backups.count %></strong> 個備份, 總共 <%= backups.totalSize %>
+      当前有 <strong style="color: var(--accent);"><%= backups.count %></strong> 个备份, 总共 <%= backups.totalSize %>
     </div>
   <% } %>
 </div>

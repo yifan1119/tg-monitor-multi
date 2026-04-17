@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# healthcheck.sh — 每 5 分鐘跑 (由 cron 觸發, 不手動跑)
+# healthcheck.sh — 每 5 分钟跑 (由 cron 触发, 不手动跑)
 #
-# 對齊 baseline 邏輯:
-#   - 掃 PM2 所有 tg-* 進程
-#   - 對「非 listener」進程: 狀態 != online → pm2 restart
-#   - 對「listener」進程: 不動 (因 restart 會掉 TG session, 需人工處理)
+# 对齐 baseline 逻辑:
+#   - 扫 PM2 所有 tg-* 进程
+#   - 对“非 listener”进程: 状态 != online → pm2 restart
+#   - 对“listener”进程: 不动 (因 restart 会掉 TG session, 需人工处理)
 #
-# 為什麼 listener 不自動重啟:
-#   - gram.js 重連幾秒, 期間錯過訊息 (雖有 backfill, 但頻繁重啟 TG 會風控)
-#   - listener 壞了通常是 session.txt 失效 (要人重登), 不是軟錯誤
+# 为什么 listener 不自动重启:
+#   - gram.js 重连几秒, 期间错过讯息 (虽有 backfill, 但频繁重启 TG 会风控)
+#   - listener 坏了通常是 session.txt 失效 (要人重登), 不是软错误
 #
-# 支援的自動重啟目標:
-#   - tg-system-events-*     每部門 1 個
-#   - tg-sheet-writer-*      每部門 1 個
-#   - tg-title-sheet-writer  全局 1 個
-#   - tg-review-report-writer 全局 1 個
+# 支援的自动重启目标:
+#   - tg-system-events-*     每部门 1 个
+#   - tg-sheet-writer-*      每部门 1 个
+#   - tg-title-sheet-writer  全局 1 个
+#   - tg-review-report-writer 全局 1 个
 
 set -u
 
@@ -25,27 +25,27 @@ mkdir -p "$LOG_DIR"
 
 ts() { date '+%Y-%m-%d %H:%M:%S'; }
 
-# 防重入 (若上一次還沒跑完, 跳過)
+# 防重入 (若上一次还没跑完, 跳过)
 LOCK="$LOG_DIR/.lock"
 if [[ -f "$LOCK" ]]; then
   age=$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || echo 0) ))
   if [[ $age -lt 300 ]]; then
-    echo "[$(ts)] 上一次還在跑 (${age}s ago), 跳過" >> "$LOG_FILE"
+    echo "[$(ts)] 上一次还在跑 (${age}s ago), 跳过" >> "$LOG_FILE"
     exit 0
   fi
 fi
 touch "$LOCK"
 trap 'rm -f "$LOCK"' EXIT
 
-# 取得所有 PM2 進程列表
+# 取得所有 PM2 进程列表
 pm2_list=$(pm2 jlist 2>/dev/null)
 if [[ -z "$pm2_list" || "$pm2_list" == "[]" ]]; then
-  echo "[$(ts)] pm2 沒跑或沒進程" >> "$LOG_FILE"
+  echo "[$(ts)] pm2 没跑或没进程" >> "$LOG_FILE"
   exit 0
 fi
 
-# 解析出 tg-* 進程, 排除 listener
-# 用 node 解析 JSON (確保跨平台)
+# 解析出 tg-* 进程, 排除 listener
+# 用 node 解析 JSON (确保跨平台)
 mapfile -t SERVICES < <(node -e '
   const list = JSON.parse(require("fs").readFileSync(0, "utf8"));
   const protect = list
@@ -75,10 +75,10 @@ done
 
 if [[ $restarted -gt 0 ]]; then
   pm2 save >> "$LOG_FILE" 2>&1 || true
-  echo "[$(ts)] 掃完 $checked 個, 重啟了 $restarted 個" >> "$LOG_FILE"
+  echo "[$(ts)] 扫完 $checked 个, 重启了 $restarted 个" >> "$LOG_FILE"
 fi
 
-# 保持日誌不無限膨脹 — 超過 5MB 輪替
+# 保持日志不无限膨胀 — 超过 5MB 轮替
 if [[ -f "$LOG_FILE" ]]; then
   size=$(stat -f %z "$LOG_FILE" 2>/dev/null || stat -c %s "$LOG_FILE" 2>/dev/null || echo 0)
   if [[ $size -gt 5242880 ]]; then

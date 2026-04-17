@@ -1,77 +1,77 @@
 <div class="page-header">
   <div>
-    <div class="page-title">總覽 · Dashboard</div>
+    <div class="page-title">总览 · Dashboard</div>
     <div class="page-subtitle">
       <% if (summary.deptCount === 0) { %>
-        尚未新增任何部門
+        尚未新增任何部门
       <% } else { %>
-        全系統即時狀態 · 最後更新 <%= new Date().toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) %>
+        全系统即时状态 · 最后更新 <%= new Date().toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) %>
       <% } %>
     </div>
   </div>
   <% if (summary.deptCount > 0) { %>
-    <div><a href="/depts/new" class="btn">＋ 新增部門</a></div>
+    <div><a href="/depts/new" class="btn">＋ 新增部门</a></div>
   <% } %>
 </div>
 
 <% if (summary.deptCount === 0) { %>
 
-  <!-- ═══ 空狀態：引導新增第一個部門 ═══ -->
+  <!-- ═══ 空状态：引导新增第一个部门 ═══ -->
   <div class="panel" style="text-align: center; padding: 4rem 2rem;">
     <div style="font-family: 'Orbitron', sans-serif; font-size: 2.2rem; background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3)); background-size: 200% 200%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 5s linear infinite; letter-spacing: 0.2em; margin-bottom: 1rem;">
       READY
     </div>
     <div style="font-size: 1.05rem; color: var(--text-1); margin-bottom: 0.5rem;">
-      空模板已就緒，現在開始加入第一個部門
+      空模板已就绪，现在开始加入第一个部门
     </div>
     <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2.5rem; line-height: 1.8;">
-      每個部門會自動建立 listener / system-events / sheet-writer 三個 PM2 進程<br>
-      同一台 VPS 可以承載多個部門，互相隔離
+      每个部门会自动建立 listener / system-events / sheet-writer 三个 PM2 进程<br>
+      同一台 VPS 可以承载多个部门，互相隔离
     </div>
     <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-      <a href="/setup" class="btn">🚀 走設置精靈</a>
-      <a href="/depts/new" class="btn ghost">＋ 直接新增部門</a>
+      <a href="/setup" class="btn">🚀 走设置精灵</a>
+      <a href="/depts/new" class="btn ghost">＋ 直接新增部门</a>
     </div>
 
     <div style="margin-top: 3rem; padding: 1.5rem; background: rgba(7, 10, 21, 0.5); border: 1px dashed var(--panel-border); border-radius: 8px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
       <div style="font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--accent); letter-spacing: 0.15em; margin-bottom: 0.75rem;">▸ 快速上手</div>
       <ol style="font-size: 0.85rem; color: var(--text-1); line-height: 2; padding-left: 1.25rem; margin: 0;">
-        <li>走 <strong style="color: var(--accent);">設置精靈</strong>：填 TG API / Google SA / 第一個部門</li>
+        <li>走 <strong style="color: var(--accent);">设置精灵</strong>：填 TG API / Google SA / 第一个部门</li>
         <li>在 VPS 跑 <code style="background: rgba(0,230,255,0.1); padding: 0.1rem 0.4rem; border-radius: 3px; color: var(--accent); font-size: 0.8rem;">node scripts/login-dept.js</code> 完成 TG 登入</li>
-        <li>啟動 PM2 進程 — 3 個部門進程 + 2 個全局進程</li>
-        <li>回到 Dashboard 看實時狀態</li>
+        <li>启动 PM2 进程 — 3 个部门进程 + 2 个全局进程</li>
+        <li>回到 Dashboard 看实时状态</li>
       </ol>
     </div>
   </div>
 
 <% } else { %>
 
-  <!-- ═══ 有部門：KPI + 部門卡 + 告警 + PM2 表 ═══ -->
+  <!-- ═══ 有部门：KPI + 部门卡 + 告警 + PM2 表 ═══ -->
   <div class="kpi-grid">
     <div class="kpi">
-      <div class="kpi-label">部門數</div>
-      <div class="kpi-value"><%= summary.deptCount %><span class="kpi-unit">個</span></div>
+      <div class="kpi-label">部门数</div>
+      <div class="kpi-value"><%= summary.deptCount %><span class="kpi-unit">个</span></div>
     </div>
     <div class="kpi green">
-      <div class="kpi-label">線上進程</div>
+      <div class="kpi-label">线上进程</div>
       <div class="kpi-value"><%= summary.procOnline %><span class="kpi-unit">/ <%= summary.procTotal %></span></div>
     </div>
     <div class="kpi <%= summary.procOffline > 0 ? 'red' : '' %>">
-      <div class="kpi-label">離線進程</div>
-      <div class="kpi-value"><%= summary.procOffline %><span class="kpi-unit">個</span></div>
+      <div class="kpi-label">离线进程</div>
+      <div class="kpi-value"><%= summary.procOffline %><span class="kpi-unit">个</span></div>
     </div>
     <div class="kpi <%= summary.sessionBroken > 0 ? 'yellow' : 'green' %>">
-      <div class="kpi-label">Session 異常</div>
-      <div class="kpi-value"><%= summary.sessionBroken %><span class="kpi-unit">個</span></div>
+      <div class="kpi-label">Session 异常</div>
+      <div class="kpi-value"><%= summary.sessionBroken %><span class="kpi-unit">个</span></div>
     </div>
     <div class="kpi">
-      <div class="kpi-label">24h 命中關鍵字</div>
+      <div class="kpi-label">24h 命中关键字</div>
       <div class="kpi-value"><%= summary.totalHit24h %><span class="kpi-unit">次</span></div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-title">部門狀態</div>
+    <div class="panel-title">部门状态</div>
     <div class="dept-grid">
       <% depts.forEach(d => {
         const deptProcs = procs.filter(p => p.dept === d.name);
@@ -108,19 +108,19 @@
 
   <% if (procs.length > 0) { %>
     <div class="panel">
-      <div class="panel-title">PM2 進程狀態 (<%= procs.length %>)</div>
+      <div class="panel-title">PM2 进程状态 (<%= procs.length %>)</div>
       <div style="overflow-x: auto;">
         <table>
           <thead>
             <tr>
-              <th>進程</th>
-              <th>部門</th>
-              <th>類型</th>
-              <th>狀態</th>
+              <th>进程</th>
+              <th>部门</th>
+              <th>类型</th>
+              <th>状态</th>
               <th>CPU</th>
-              <th>記憶體</th>
-              <th>重啟</th>
-              <th>執行時間</th>
+              <th>内存</th>
+              <th>重启</th>
+              <th>执行时间</th>
             </tr>
           </thead>
           <tbody>

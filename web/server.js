@@ -1,11 +1,11 @@
 // tg-monitor-multi — Web Dashboard
-// v0.2.0-mvp 預覽版 (D3+D4 合併推進)
+// v0.2.0-mvp 预览版 (D3+D4 合并推进)
 //
-// 啟動：
+// 启动：
 //   cd web && npm install && npm start
-//   瀏覽 http://localhost:5003
+//   浏览 http://localhost:5003
 //
-// 資料源：預設 mock，環境變數 DATA_PROVIDER=real 切到實際 pm2+depts/
+// 资料源：预设 mock，环境变数 DATA_PROVIDER=real 切到实际 pm2+depts/
 
 const express = require("express");
 const expressLayouts = require("express-ejs-layouts");
@@ -17,7 +17,7 @@ const dataProvider = require("./lib/data-provider");
 const { createDept, validateDeptName } = require("../scripts/new-dept");
 const { createGlobal, listGlobals, KINDS: GLOBAL_KINDS } = require("../scripts/new-global");
 
-// multer: 處理 multipart/form-data (檔案上傳). 記憶體儲存, 200KB 上限 (Google SA JSON 通常 ~2KB)
+// multer: 处理 multipart/form-data (档案上传). 内存储存, 200KB 上限 (Google SA JSON 通常 ~2KB)
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 200 * 1024 },
@@ -38,7 +38,7 @@ app.use(expressLayouts);
 app.set("layout", "partials/layout");
 app.set("layout extractScripts", true);
 
-// ─── 靜態 / body parser ──────────────────────────────
+// ─── 静态 / body parser ──────────────────────────────
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -52,7 +52,7 @@ app.use((_req, res, next) => {
   next();
 });
 
-// ─── 輔助: 呼叫 scripts/generate-ecosystem.js ────────
+// ─── 辅助: 呼叫 scripts/generate-ecosystem.js ────────
 function regenerateEcosystem() {
   return new Promise((resolve) => {
     const script = path.join(ROOT, "scripts", "generate-ecosystem.js");
@@ -68,13 +68,13 @@ function regenerateEcosystem() {
 // ROUTES
 // ═════════════════════════════════════════════════════
 
-// ─── 根路徑 → 自動判斷去哪 ───────────────────────────
+// ─── 根路径 → 自动判断去哪 ───────────────────────────
 app.get("/", async (_req, res) => {
   const complete = await dataProvider.isSetupComplete();
   res.redirect(complete ? "/dashboard" : "/setup");
 });
 
-// ─── 健康檢查 API ────────────────────────────────────
+// ─── 健康检查 API ────────────────────────────────────
 app.get("/health", async (_req, res) => {
   res.json({
     status: "ok",
@@ -95,7 +95,7 @@ app.get("/login", (req, res) => {
 });
 
 app.post("/login", (_req, res) => {
-  // MVP 佔位：任何登入都成功 (v0.6 正式做 bcrypt 驗證)
+  // MVP 占位：任何登入都成功 (v0.6 正式做 bcrypt 验证)
   res.redirect("/dashboard");
 });
 
@@ -109,10 +109,10 @@ function renderSetup(res, { error = null, formData = {} } = {}, status = 200) {
     try {
       const sa = JSON.parse(fs.readFileSync(GOOGLE_SA_PATH, "utf8"));
       saInfo = { clientEmail: sa.client_email || "(未知)", projectId: sa.project_id || "" };
-    } catch { /* 解析失敗也顯示檔案存在但結構壞 */ }
+    } catch { /* 解析失败也显示档案存在但结构坏 */ }
   }
   res.status(status).render("pages/setup", {
-    title: "首次設置",
+    title: "首次设置",
     showNav: false,
     active: "",
     error,
@@ -126,9 +126,9 @@ app.get("/setup", (_req, res) => {
   renderSetup(res);
 });
 
-// 處理 google_sa 檔案上傳 (單檔, field name = google_sa)
+// 处理 google_sa 档案上传 (单档, field name = google_sa)
 app.post("/setup", upload.single("google_sa"), async (req, res) => {
-  // 第 1 批: 先驗證 → 通過才寫檔 + 建部門 + 重生 ecosystem
+  // 第 1 批: 先验证 → 通过才写档 + 建部门 + 重生 ecosystem
   const {
     admin_username, admin_password,
     tg_api_id, tg_api_hash,
@@ -141,36 +141,36 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
   };
 
   try {
-    // 0a. 若有填部門, 先驗 dept_name
+    // 0a. 若有填部门, 先验 dept_name
     if (dept_name) {
       const v = validateDeptName(dept_name.trim());
       if (!v.ok) {
-        return renderSetup(res, { error: `部門代號: ${v.reason}`, formData }, 400);
+        return renderSetup(res, { error: `部门代号: ${v.reason}`, formData }, 400);
       }
     }
 
-    // 0b. 若有上傳 Google SA 檔, 先驗 JSON 結構
+    // 0b. 若有上传 Google SA 档, 先验 JSON 结构
     if (req.file && req.file.buffer) {
       let parsed;
       try {
         parsed = JSON.parse(req.file.buffer.toString("utf8"));
       } catch {
-        return renderSetup(res, { error: "Google SA 檔案不是有效 JSON", formData }, 400);
+        return renderSetup(res, { error: "Google SA 档案不是有效 JSON", formData }, 400);
       }
       if (!parsed.type || parsed.type !== "service_account" || !parsed.client_email || !parsed.private_key) {
         return renderSetup(res, {
-          error: "Google SA 檔案結構不對: 缺少 type/client_email/private_key. 請從 GCP Console → IAM → Service Accounts 下載 JSON key.",
+          error: "Google SA 档案结构不对: 缺少 type/client_email/private_key. 请从 GCP Console → IAM → Service Accounts 下载 JSON key.",
           formData,
         }, 400);
       }
-      // 驗證通過, 寫到 shared/
+      // 验证通过, 写到 shared/
       fs.writeFileSync(GOOGLE_SA_PATH, req.file.buffer.toString("utf8"));
       console.log(`[setup] Google SA 已保存: ${parsed.client_email}`);
     }
 
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-    // 1. 寫 system.json
+    // 1. 写 system.json
     const sys = fs.existsSync(SYSTEM_JSON)
       ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8"))
       : {};
@@ -184,7 +184,7 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
     });
     fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
 
-    // 2. 建第一個部門目錄（如果有填）
+    // 2. 建第一个部门目录（如果有填）
     let createdDept = null;
     if (dept_name) {
       createdDept = await createDept({
@@ -208,7 +208,7 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
   }
 });
 
-// 重設 setup (開發用) — POST /dev/reset-setup
+// 重设 setup (开发用) — POST /dev/reset-setup
 app.post("/dev/reset-setup", (_req, res) => {
   try {
     if (fs.existsSync(SYSTEM_JSON)) fs.unlinkSync(SYSTEM_JSON);
@@ -225,7 +225,7 @@ app.get("/dashboard", async (_req, res) => {
     dataProvider.listAlerts(),
   ]);
   res.render("pages/dashboard", {
-    title: "總覽",
+    title: "总览",
     active: "dashboard",
     summary,
     depts,
@@ -234,21 +234,21 @@ app.get("/dashboard", async (_req, res) => {
   });
 });
 
-// ─── 部門列表 ───────────────────────────────────────
+// ─── 部门列表 ───────────────────────────────────────
 app.get("/depts", async (_req, res) => {
   const [depts, procs] = await Promise.all([
     dataProvider.listDepartments(),
     dataProvider.listProcesses(),
   ]);
   res.render("pages/depts", {
-    title: "部門管理",
+    title: "部门管理",
     active: "depts",
     depts,
     procs,
   });
 });
 
-// ─── 佔位頁 (D5 / v0.3 才實作) ──────────────────────
+// ─── 占位页 (D5 / v0.3 才实作) ──────────────────────
 function placeholder(title, subtitle, stage, description) {
   return (_req, res) => {
     res.render("pages/placeholder", {
@@ -261,10 +261,10 @@ function placeholder(title, subtitle, stage, description) {
   };
 }
 
-// ─── 新增部門（GET 表單 + POST 建目錄）────────────────
+// ─── 新增部门（GET 表单 + POST 建目录）────────────────
 function renderDeptNew(res, { error = null, formData = {} } = {}, status = 200) {
   res.status(status).render("pages/dept-new", {
-    title: "新增部門",
+    title: "新增部门",
     active: "depts",
     error,
     formData,
@@ -298,7 +298,7 @@ app.post("/depts/new", async (req, res) => {
     renderDeptNew(res, { error: e.message, formData }, 400);
   }
 });
-// ─── 編輯部門 ─────────────────────────────────
+// ─── 编辑部门 ─────────────────────────────────
 function loadDeptForEdit(name) {
   const { DEPTS_DIR: DD } = require("../scripts/new-dept");
   const deptDir = path.join(DD, name);
@@ -325,13 +325,13 @@ app.get("/depts/:name/edit", async (req, res) => {
   const dept = loadDeptForEdit(name);
   if (!dept) {
     return res.status(404).render("pages/placeholder", {
-      title: "部門不存在", subtitle: "", stage: "",
+      title: "部门不存在", subtitle: "", stage: "",
       description: `depts/${name}/ 不存在.`, active: "depts",
     });
   }
   const procs = await listProcsForDept(name);
   res.render("pages/dept-edit", {
-    title: `編輯 · ${name}`, active: "depts",
+    title: `编辑 · ${name}`, active: "depts",
     dept, config: dept.config, procs,
     formData: {}, error: null, flash: req.query.flash || null,
   });
@@ -340,11 +340,28 @@ app.get("/depts/:name/edit", async (req, res) => {
 app.post("/depts/:name/edit", async (req, res) => {
   const name = req.params.name;
   const dept = loadDeptForEdit(name);
-  if (!dept) return res.status(404).send("部門不存在");
+  if (!dept) return res.status(404).send("部门不存在");
 
   const body = req.body;
-  // keywords textarea → 陣列
-  const keywords = String(body.keywords || "").split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  // keywords: 支持 , ， 、 或换行 (向前兼容旧格式)
+  const keywords = String(body.keywords || "")
+    .split(/[,，、\n\r]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  // 时间字段: UI 输入友好单位 (分钟/秒), 后端转换成 ms 存
+  // cooldownMinutes → cooldownMs
+  let cooldownMs = dept.config.cooldownMs;
+  if (body.cooldownMinutes !== undefined && body.cooldownMinutes !== "") {
+    const m = Number(body.cooldownMinutes);
+    if (Number.isFinite(m) && m >= 0) cooldownMs = Math.round(m * 60000);
+  }
+  // backfillIntervalSec → backfillIntervalMs
+  let backfillIntervalMs = dept.config.backfillIntervalMs;
+  if (body.backfillIntervalSec !== undefined && body.backfillIntervalSec !== "") {
+    const s = Number(body.backfillIntervalSec);
+    if (Number.isFinite(s) && s >= 10) backfillIntervalMs = Math.round(s * 1000);
+  }
 
   try {
     const updated = {
@@ -355,9 +372,9 @@ app.post("/depts/:name/edit", async (req, res) => {
       spreadsheetId: body.spreadsheetId,
       sheetName: body.sheetName,
       keywords,
-      cooldownMs: Number(body.cooldownMs) || dept.config.cooldownMs,
+      cooldownMs,
       summaryMaxLength: Number(body.summaryMaxLength) || dept.config.summaryMaxLength,
-      backfillIntervalMs: Number(body.backfillIntervalMs) || dept.config.backfillIntervalMs,
+      backfillIntervalMs,
       backfillLimit: Number(body.backfillLimit) || dept.config.backfillLimit,
     };
     const { DEPTS_DIR: DD } = require("../scripts/new-dept");
@@ -365,14 +382,14 @@ app.post("/depts/:name/edit", async (req, res) => {
       path.join(DD, name, "config.json"),
       JSON.stringify(updated, null, 2) + "\n"
     );
-    // 保存後自動重啟 (若進程在跑)
+    // 保存后自动重启 (若进程在跑)
     await restartDept(name);
-    res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已保存 config.json 並嘗試重啟進程")}`);
+    res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已保存 config.json 并尝试重启进程")}`);
   } catch (e) {
     console.error("save config failed:", e);
     const procs = await listProcsForDept(name);
     res.status(400).render("pages/dept-edit", {
-      title: `編輯 · ${name}`, active: "depts",
+      title: `编辑 · ${name}`, active: "depts",
       dept, config: dept.config, procs,
       formData: body, error: e.message, flash: null,
     });
@@ -382,7 +399,7 @@ app.post("/depts/:name/edit", async (req, res) => {
 // ─── PM2 控制 ────────────────────────────────
 function pm2Exec(action, nameGlob) {
   return new Promise((resolve) => {
-    // pm2 支援 name 模糊匹配，用 `tg-*-<dept>` 一次管 3 個
+    // pm2 支援 name 模糊匹配，用 `tg-*-<dept>` 一次管 3 个
     execFile("pm2", [action, nameGlob], { cwd: ROOT }, (err, stdout, stderr) => {
       if (err) console.error(`[pm2 ${action} ${nameGlob}]`, stderr || err.message);
       else console.log(`[pm2 ${action} ${nameGlob}]`, stdout.trim().split("\n").slice(-3).join(" | "));
@@ -392,14 +409,14 @@ function pm2Exec(action, nameGlob) {
 }
 
 async function restartDept(name) {
-  // 用 glob 同時管 3 類進程
+  // 用 glob 同时管 3 类进程
   return pm2Exec("restart", `tg-*-${name}`);
 }
 async function startDept(name) {
-  // 先 try start (若已跑會錯 but 無害), fallback start ecosystem --only
+  // 先 try start (若已跑会错 but 无害), fallback start ecosystem --only
   const ecosystemPath = path.join(ROOT, "ecosystem.config.js");
   if (!fs.existsSync(ecosystemPath)) {
-    return { ok: false, stderr: "ecosystem.config.js 不存在, 請先新增部門後再啟動" };
+    return { ok: false, stderr: "ecosystem.config.js 不存在, 请先新增部门后再启动" };
   }
   return new Promise((resolve) => {
     execFile("pm2", ["start", ecosystemPath, "--only", `tg-listener-${name},tg-system-events-${name},tg-sheet-writer-${name}`],
@@ -417,20 +434,20 @@ async function stopDept(name) {
 app.post("/depts/:name/restart", async (req, res) => {
   const { name } = req.params;
   await restartDept(name);
-  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 restart")}`);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已触发 pm2 restart")}`);
 });
 app.post("/depts/:name/start", async (req, res) => {
   const { name } = req.params;
   await startDept(name);
-  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 start")}`);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已触发 pm2 start")}`);
 });
 app.post("/depts/:name/stop", async (req, res) => {
   const { name } = req.params;
   await stopDept(name);
-  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已觸發 pm2 stop")}`);
+  res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已触发 pm2 stop")}`);
 });
 
-// ─── 刪部門 ──────────────────────────────────
+// ─── 删部门 ──────────────────────────────────
 app.post("/depts/:name/delete", async (req, res) => {
   const { name } = req.params;
   const v = validateDeptName(name);
@@ -438,7 +455,7 @@ app.post("/depts/:name/delete", async (req, res) => {
   try {
     const { DEPTS_DIR: DD } = require("../scripts/new-dept");
     const src = path.join(DD, name);
-    if (!fs.existsSync(src)) return res.status(404).send("部門不存在");
+    if (!fs.existsSync(src)) return res.status(404).send("部门不存在");
     // 先停 PM2
     await pm2Exec("delete", `tg-*-${name}`);
     // 搬到 .trash
@@ -450,7 +467,7 @@ app.post("/depts/:name/delete", async (req, res) => {
     res.redirect(`/depts?deleted=${name}`);
   } catch (e) {
     console.error("delete dept failed:", e);
-    res.status(500).send(`刪除失敗: ${e.message}`);
+    res.status(500).send(`删除失败: ${e.message}`);
   }
 });
 
@@ -459,7 +476,7 @@ const tgLogin = require("./lib/tg-login");
 
 function renderDeptLogin(res, name, opts = {}, status = 200) {
   const dept = loadDeptForEdit(name);
-  if (!dept) return res.status(404).send(`部門不存在: ${name}`);
+  if (!dept) return res.status(404).send(`部门不存在: ${name}`);
   res.status(status).render("pages/dept-login", {
     title: `TG 登入 · ${name}`,
     active: "depts",
@@ -532,9 +549,9 @@ app.post("/depts/:name/login/abort", (req, res) => {
   res.redirect(`/depts/${name}/login`);
 });
 app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
-app.get("/logs",                 placeholder("日誌", "即時 pm2 logs 串流", "v0.3 實作", "留到 v0.3。屆時可用 WebSocket 串 pm2 logs，按部門篩選 + 搜尋關鍵字。"));
-app.get("/logs/:name",           placeholder("部門日誌", "單部門 pm2 logs", "v0.3 實作", "留到 v0.3。"));
-// ─── /settings (全局進程 + healthcheck + 系統資訊) ───
+app.get("/logs",                 placeholder("日志", "即时 pm2 logs 串流", "v0.3 实作", "留到 v0.3。届时可用 WebSocket 串 pm2 logs，按部门筛选 + 搜寻关键字。"));
+app.get("/logs/:name",           placeholder("部门日志", "单部门 pm2 logs", "v0.3 实作", "留到 v0.3。"));
+// ─── /settings (全局进程 + healthcheck + 系统资讯) ───
 const CRON_MARKER = "# tg-monitor-multi healthcheck";
 
 function readHealthcheckStatus() {
@@ -594,8 +611,8 @@ app.get("/settings", async (req, res) => {
     listAllProcesses(),
   ]);
   const GLOBAL_PURPOSES = {
-    "title-sheet-writer":   "跨部門群名變更彙總 (訂閱多中轉群, 分流寫 Sheet)",
-    "review-report-writer": "審查報告閉環跟蹤 (訂閱多審查報告群, 寫總表)",
+    "title-sheet-writer":   "跨部门群名变更汇总 (订阅多中转群, 分流写 Sheet)",
+    "review-report-writer": "审查报告闭环跟踪 (订阅多审查报告群, 写总表)",
   };
   const globalKindsWithPurpose = GLOBAL_KINDS.map(k => ({ kind: k, purpose: GLOBAL_PURPOSES[k] }));
 
@@ -614,11 +631,11 @@ app.get("/settings", async (req, res) => {
     nodeVersion: process.version,
     gsaExists,
     gsaEmail,
-    pm2Available: true, // 之後可真的跑 pm2 -v 檢查, MVP 先假設
+    pm2Available: true, // 之后可真的跑 pm2 -v 检查, MVP 先假设
   };
 
   res.render("pages/settings", {
-    title: "系統設置",
+    title: "系统设置",
     active: "settings",
     globals,
     globalKinds: globalKindsWithPurpose,
@@ -631,7 +648,7 @@ app.get("/settings", async (req, res) => {
   });
 });
 
-// ─── 建立全局進程 ───────────────────────────────
+// ─── 建立全局进程 ───────────────────────────────
 app.post("/settings/global/new", async (req, res) => {
   const { kind } = req.body;
   try {
@@ -645,7 +662,7 @@ app.post("/settings/global/new", async (req, res) => {
   }
 });
 
-// ─── 全局進程 PM2 控制 ───────────────────────────
+// ─── 全局进程 PM2 控制 ───────────────────────────
 app.post("/settings/global/:kind/:action", async (req, res) => {
   const { kind, action } = req.params;
   if (!GLOBAL_KINDS.includes(kind)) {
@@ -658,18 +675,18 @@ app.post("/settings/global/:kind/:action", async (req, res) => {
   try {
     if (action === "start") {
       const ecoPath = path.join(ROOT, "ecosystem.config.js");
-      if (!fs.existsSync(ecoPath)) throw new Error("ecosystem.config.js 不存在, 先建立全局進程");
+      if (!fs.existsSync(ecoPath)) throw new Error("ecosystem.config.js 不存在, 先建立全局进程");
       await new Promise(r => execFile("pm2", ["start", ecoPath, "--only", procName], { cwd: ROOT }, (err, _o, _e) => r()));
     } else {
       await pm2Exec(action, procName);
     }
-    res.redirect(`/settings?flash=${encodeURIComponent(`已觸發 pm2 ${action} ${procName}`)}`);
+    res.redirect(`/settings?flash=${encodeURIComponent(`已触发 pm2 ${action} ${procName}`)}`);
   } catch (e) {
     res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
   }
 });
 
-// ─── Healthcheck 啟用 / 停用 ───────────────────
+// ─── Healthcheck 启用 / 停用 ───────────────────
 function runHealthcheckInstall(arg) {
   return new Promise((resolve, reject) => {
     const script = path.join(ROOT, "scripts", "install-healthcheck.sh");
@@ -682,9 +699,9 @@ function runHealthcheckInstall(arg) {
 app.post("/settings/healthcheck/install", async (_req, res) => {
   try {
     await runHealthcheckInstall("install");
-    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已啟用 (每 5 分鐘)")}`);
+    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已启用 (每 5 分钟)")}`);
   } catch (e) {
-    res.redirect(`/settings?error=${encodeURIComponent(`啟用失敗: ${e.message}`)}`);
+    res.redirect(`/settings?error=${encodeURIComponent(`启用失败: ${e.message}`)}`);
   }
 });
 app.post("/settings/healthcheck/remove", async (_req, res) => {
@@ -692,7 +709,7 @@ app.post("/settings/healthcheck/remove", async (_req, res) => {
     await runHealthcheckInstall("--remove");
     res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已停用")}`);
   } catch (e) {
-    res.redirect(`/settings?error=${encodeURIComponent(`停用失敗: ${e.message}`)}`);
+    res.redirect(`/settings?error=${encodeURIComponent(`停用失败: ${e.message}`)}`);
   }
 });
 
@@ -700,14 +717,14 @@ app.post("/settings/healthcheck/remove", async (_req, res) => {
 app.use((_req, res) => {
   res.status(404).render("pages/placeholder", {
     title: "404",
-    subtitle: "頁面不存在",
+    subtitle: "页面不存在",
     stage: "",
-    description: "你訪問的路徑不存在。返回總覽看看？",
+    description: "你访问的路径不存在。返回总览看看？",
     active: "",
   });
 });
 
-// ─── 啟動 ────────────────────────────────────────────
+// ─── 启动 ────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log("╔════════════════════════════════════════════════════════");
   console.log("║  tg-monitor-multi · v" + VERSION);
@@ -715,28 +732,28 @@ app.listen(PORT, () => {
   console.log("║  listen: http://localhost:" + PORT);
   console.log("║  root:   " + ROOT);
   if (process.env.TG_MONITOR_MULTI_DOCKER === "1") {
-    console.log("║  env:    DOCKER (tg-* 進程由本 Web 的同 pm2 daemon 管)");
+    console.log("║  env:    DOCKER (tg-* 进程由本 Web 的同 pm2 daemon 管)");
   }
   console.log("╚════════════════════════════════════════════════════════");
 
-  // 啟動時: 若 ecosystem.config.js 存在且含進程定義, 自動 pm2 start
-  // (讓容器重啟 / 服務重啟後, 既有部門進程自動拉起)
+  // 启动时: 若 ecosystem.config.js 存在且含进程定义, 自动 pm2 start
+  // (让容器重启 / 服务重启后, 既有部门进程自动拉起)
   const ecoPath = path.join(ROOT, "ecosystem.config.js");
   if (fs.existsSync(ecoPath)) {
     try {
       const content = fs.readFileSync(ecoPath, "utf8");
       if (content.includes('"name"')) {
-        console.log("[boot] 偵測到 ecosystem.config.js 含進程定義, 嘗試 pm2 start...");
+        console.log("[boot] 侦测到 ecosystem.config.js 含进程定义, 尝试 pm2 start...");
         execFile("pm2", ["start", ecoPath], { cwd: ROOT }, (err, stdout, stderr) => {
           if (err) {
-            console.warn("[boot] pm2 start ecosystem 失敗:", (stderr || err.message).split("\n")[0]);
+            console.warn("[boot] pm2 start ecosystem 失败:", (stderr || err.message).split("\n")[0]);
           } else {
-            console.log("[boot] ecosystem 載入完成");
+            console.log("[boot] ecosystem 载入完成");
           }
         });
       }
     } catch (e) {
-      console.warn("[boot] 讀 ecosystem.config.js 失敗:", e.message);
+      console.warn("[boot] 读 ecosystem.config.js 失败:", e.message);
     }
   }
 });

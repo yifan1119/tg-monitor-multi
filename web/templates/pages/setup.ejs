@@ -1,53 +1,53 @@
-<% /* setup wizard — 首次設置 */ %>
+<% /* setup wizard — 首次设置 */ %>
 <% const fd = locals.formData || {}; %>
 <div class="page-header">
   <div>
-    <div class="page-title">首次設置精靈</div>
-    <div class="page-subtitle">填完 4 節設置即可開始第一個部門</div>
+    <div class="page-title">首次设置精灵</div>
+    <div class="page-subtitle">填完 4 节设置即可开始第一个部门</div>
   </div>
 </div>
 
 <% if (locals.error) { %>
   <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
-    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 設置失敗</div>
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 设置失败</div>
     <div style="color: var(--text-0); font-size: 0.9rem;"><%= error %></div>
-    <div style="color: var(--text-dim); font-size: 0.8rem; margin-top: 0.5rem;">請修正後重新提交。原本填的值已保留。</div>
+    <div style="color: var(--text-dim); font-size: 0.8rem; margin-top: 0.5rem;">请修正后重新提交。原本填的值已保留。</div>
   </div>
 <% } %>
 
 <div class="wizard-steps">
-  <div class="wizard-step active">1 · 管理員</div>
+  <div class="wizard-step active">1 · 管理员</div>
   <div class="wizard-step">2 · TG API</div>
   <div class="wizard-step">3 · Google SA</div>
-  <div class="wizard-step">4 · 第一個部門</div>
+  <div class="wizard-step">4 · 第一个部门</div>
 </div>
 
 <form action="/setup" method="POST" enctype="multipart/form-data">
   <div class="panel">
-    <div class="panel-title">1. Web 後台管理員帳號</div>
+    <div class="panel-title">1. Web 后台管理员账号</div>
     <div class="form-group">
-      <label>用戶名</label>
+      <label>用户名</label>
       <input type="text" name="admin_username" placeholder="admin" value="<%= fd.admin_username || '' %>" required>
-      <div class="hint">日後登入 Web 後台用</div>
+      <div class="hint">日后登入 Web 后台用</div>
     </div>
     <div class="form-group">
-      <label>密碼</label>
+      <label>密码</label>
       <input type="password" name="admin_password" required>
-      <div class="hint">至少 8 字元，建議混用大小寫+數字</div>
+      <div class="hint">至少 8 字元，建议混用大小写+数字</div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-title">2. Telegram API 認證</div>
+    <div class="panel-title">2. Telegram API 认证</div>
     <div class="form-group">
       <label>TG_API_ID</label>
       <input type="text" name="tg_api_id" placeholder="例: 31462192" value="<%= fd.tg_api_id || '' %>" required>
-      <div class="hint">從 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent);">my.telegram.org/apps</a> 取得</div>
+      <div class="hint">从 <a href="https://my.telegram.org/apps" target="_blank" style="color:var(--accent);">my.telegram.org/apps</a> 取得</div>
     </div>
     <div class="form-group">
       <label>TG_API_HASH</label>
-      <input type="text" name="tg_api_hash" placeholder="32 位十六進制" value="<%= fd.tg_api_hash || '' %>" required>
-      <div class="hint">同一台 VPS 上的多個部門可共用這組</div>
+      <input type="text" name="tg_api_hash" placeholder="32 位十六进制" value="<%= fd.tg_api_hash || '' %>" required>
+      <div class="hint">同一台 VPS 上的多个部门可共用这组</div>
     </div>
   </div>
 
@@ -56,55 +56,55 @@
 
     <% if (locals.saExists && locals.saInfo) { %>
       <div style="padding: 0.75rem 1rem; background: rgba(0, 255, 149, 0.06); border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; margin-bottom: 1rem; font-size: 0.85rem;">
-        <span style="color: var(--green); font-weight: 700;">✓ 已上傳</span>
+        <span style="color: var(--green); font-weight: 700;">✓ 已上传</span>
         <span style="color: var(--text-1); margin-left: 0.75rem;"><code style="color: var(--accent);"><%= saInfo.clientEmail %></code></span>
         <% if (saInfo.projectId) { %>
           <span style="color: var(--text-dim); margin-left: 0.5rem;">· <%= saInfo.projectId %></span>
         <% } %>
-        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.35rem;">下方可選擇新檔案覆蓋</div>
+        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.35rem;">下方可选择新档案覆盖</div>
       </div>
     <% } %>
 
     <div class="form-group">
-      <label><%= locals.saExists ? "替換" : "上傳" %> google-service-account.json <%= locals.saExists ? "（選填）" : "" %></label>
+      <label><%= locals.saExists ? "替换" : "上传" %> google-service-account.json <%= locals.saExists ? "（选填）" : "" %></label>
       <input type="file" name="google_sa" accept="application/json,.json">
       <div class="hint">
-        到 <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:var(--accent);">GCP Console → IAM → Service Accounts</a> → 選擇或建立帳號 → Keys → Add Key → Create new key (JSON) → 下載後上傳。<br>
-        所有部門共用這一把鑰匙. 對應 Google Sheet 要把這個帳號的 email 加為「編輯者」.
+        到 <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:var(--accent);">GCP Console → IAM → Service Accounts</a> → 选择或建立账号 → Keys → Add Key → Create new key (JSON) → 下载后上传。<br>
+        所有部门共用这一把钥匙. 对应 Google Sheet 要把这个账号的 email 加为“编辑者”.
       </div>
     </div>
   </div>
 
   <div class="panel">
-    <div class="panel-title">4. 第一個部門</div>
+    <div class="panel-title">4. 第一个部门</div>
     <div class="form-group">
-      <label>部門代號 (dept_name)</label>
+      <label>部门代号 (dept_name)</label>
       <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" value="<%= fd.dept_name || '' %>" required
-        title="小寫字母開頭, 2-32 字符, 只含 a-z / 0-9 / -">
-      <div class="hint"><strong style="color: var(--yellow);">只能用小寫英文+數字+連字號</strong>（不能填中文！），2-32 字符。會作為目錄名和 PM2 進程名。例：<code style="color: var(--accent);">yueda</code>、<code style="color: var(--accent);">dept-01</code></div>
+        title="小写字母开头, 2-32 字符, 只含 a-z / 0-9 / -">
+      <div class="hint"><strong style="color: var(--yellow);">只能用小写英文+数字+连字号</strong>（不能填中文！），2-32 字符。会作为目录名和 PM2 进程名。例：<code style="color: var(--accent);">yueda</code>、<code style="color: var(--accent);">dept-01</code></div>
     </div>
     <div class="form-group">
-      <label>部門名稱（顯示用，可中文）</label>
+      <label>部门名称（显示用，可中文）</label>
       <input type="text" name="dept_display" placeholder="例: 悦达" value="<%= fd.dept_display || '' %>" required>
-      <div class="hint">Dashboard 上顯示的名稱，可用中文</div>
+      <div class="hint">Dashboard 上显示的名称，可用中文</div>
     </div>
     <div class="form-group">
-      <label>中轉群名稱 (outputChatName)</label>
+      <label>中转群名称 (outputChatName)</label>
       <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" value="<%= fd.output_chat || '' %>" required>
-      <div class="hint">TG 帳號要先加入這個群</div>
+      <div class="hint">TG 账号要先加入这个群</div>
     </div>
     <div class="form-group">
       <label>Google Sheet ID</label>
-      <input type="text" name="spreadsheet_id" placeholder="從 Sheet URL 取: /d/<這段>/edit" value="<%= fd.spreadsheet_id || '' %>" required>
-      <div class="hint">Sheet 要把 SA email 加為「編輯者」</div>
+      <input type="text" name="spreadsheet_id" placeholder="从 Sheet URL 取: /d/<这段>/edit" value="<%= fd.spreadsheet_id || '' %>" required>
+      <div class="hint">Sheet 要把 SA email 加为“编辑者”</div>
     </div>
     <div class="form-group">
-      <label>工作表分頁名稱</label>
+      <label>工作表分页名称</label>
       <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" value="<%= fd.sheet_tab || '' %>" required>
     </div>
   </div>
 
   <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-    <button type="submit" class="btn">完成設置 · 建立第一個部門</button>
+    <button type="submit" class="btn">完成设置 · 建立第一个部门</button>
   </div>
 </form>

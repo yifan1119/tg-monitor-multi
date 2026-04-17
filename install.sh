@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install.sh — 一鍵部署 (Docker 模式, 主推)
+# install.sh — 一键部署 (Docker 模式, 主推)
 #
-# 裸跑模式: 見 install-bare.sh (進階 / 開發者用)
+# 裸跑模式: 见 install-bare.sh (进阶 / 开发者用)
 #
-# 用法 (乾淨 Ubuntu / Debian):
+# 用法 (干净 Ubuntu / Debian):
 #   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh | bash
 #
 #   # 可配置:
@@ -13,13 +13,13 @@
 #   WEB_PORT=5003 \
 #   bash install.sh
 #
-# 做什麼:
-#   1. 裝 Docker (若未裝)
+# 做什么:
+#   1. 装 Docker (若未装)
 #   2. git clone repo
 #   3. 初始化 secrets/ 和 .env
 #   4. docker compose up -d --build
 #   5. 等 container healthy
-#   6. 印出 Web 設置嚮導網址
+#   6. 印出 Web 设置向导网址
 
 set -euo pipefail
 
@@ -47,39 +47,39 @@ echo "  WEB_PORT:    $WEB_PORT"
 echo ""
 
 if [[ $EUID -ne 0 ]] && [[ -z "${SUDO_USER:-}" ]]; then
-  warn "建議用 root 或 sudo 跑 (裝 Docker 需要)"
+  warn "建议用 root 或 sudo 跑 (装 Docker 需要)"
 fi
 
-# ─── 必備工具 ──────────────────────────────────────
+# ─── 必备工具 ──────────────────────────────────────
 for cmd in git curl; do
   if ! command -v "$cmd" >/dev/null; then
-    err "$cmd 未裝. 請先: apt-get install -y $cmd  或  yum install -y $cmd"
+    err "$cmd 未装. 请先: apt-get install -y $cmd  或  yum install -y $cmd"
     exit 1
   fi
 done
 
-# ─── 1. 裝 Docker ──────────────────────────────────
+# ─── 1. 装 Docker ──────────────────────────────────
 if ! command -v docker >/dev/null; then
-  log "裝 Docker (透過 get.docker.com)..."
+  log "装 Docker (透过 get.docker.com)..."
   curl -fsSL https://get.docker.com | sh
-  ok "Docker 已裝"
+  ok "Docker 已装"
 else
   ok "Docker 已存在: $(docker -v)"
 fi
 
-# 確認 docker compose plugin
+# 确认 docker compose plugin
 if ! docker compose version >/dev/null 2>&1; then
   err "docker compose v2 plugin 不可用."
-  err "  Linux: Docker 20.10+ 內建; 若沒有, 另裝: apt-get install -y docker-compose-plugin"
+  err "  Linux: Docker 20.10+ 内建; 若没有, 另装: apt-get install -y docker-compose-plugin"
   exit 2
 fi
 ok "docker compose: $(docker compose version --short)"
 
-# 確認 Docker daemon 跑著
+# 确认 Docker daemon 跑着
 if ! docker info >/dev/null 2>&1; then
-  log "Docker daemon 未跑, 啟動..."
+  log "Docker daemon 未跑, 启动..."
   systemctl start docker 2>/dev/null || service docker start 2>/dev/null || {
-    err "無法啟動 Docker. 手動: systemctl start docker"
+    err "无法启动 Docker. 手动: systemctl start docker"
     exit 3
   }
 fi
@@ -90,7 +90,7 @@ if [[ -d "$INSTALL_DIR/.git" ]]; then
   (cd "$INSTALL_DIR" && git pull --ff-only)
 else
   if [[ -d "$INSTALL_DIR" ]] && [[ -n "$(ls -A "$INSTALL_DIR" 2>/dev/null || true)" ]]; then
-    err "$INSTALL_DIR 非空且非 git repo, 無法 clone. 清空或換目錄 (INSTALL_DIR=...)"
+    err "$INSTALL_DIR 非空且非 git repo, 无法 clone. 清空或换目录 (INSTALL_DIR=...)"
     exit 1
   fi
   mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -104,16 +104,16 @@ cd "$INSTALL_DIR"
 # ─── 3. 初始化 secrets/ 和 .env ────────────────────
 mkdir -p secrets .backups .healthcheck data depts global
 
-# google-service-account.json 佔位檔 (bind mount 前必須存在)
+# google-service-account.json 占位档 (bind mount 前必须存在)
 if [[ ! -f secrets/google-service-account.json ]]; then
   echo '{}' > secrets/google-service-account.json
-  ok "建立 secrets/google-service-account.json 佔位 (setup 後會被 Web 上傳覆寫)"
+  ok "建立 secrets/google-service-account.json 占位 (setup 后会被 Web 上传覆写)"
 fi
 
 # .env for docker-compose
 if [[ ! -f .env ]]; then
   cat > .env <<EOF
-# Docker compose 部署層配置
+# Docker compose 部署层配置
 WEB_PORT=$WEB_PORT
 EOF
   ok "建立 .env (WEB_PORT=$WEB_PORT)"
@@ -137,7 +137,7 @@ for i in $(seq 1 60); do
   fi
   sleep 1
   [[ $i -eq 60 ]] && {
-    warn "等了 60s 還沒 healthy, 看 log 排查: docker compose logs"
+    warn "等了 60s 还没 healthy, 看 log 排查: docker compose logs"
   }
 done
 
@@ -149,30 +149,30 @@ VPS_IP=$(curl -fsSL --max-time 3 https://ipinfo.io/ip 2>/dev/null \
 
 echo ""
 echo -e "${c_bold}═══════════════════════════════════════════════════${c_reset}"
-echo -e "${c_green}${c_bold}  ✓ 安裝完成 · v$VERSION${c_reset}"
+echo -e "${c_green}${c_bold}  ✓ 安装完成 · v$VERSION${c_reset}"
 echo -e "${c_bold}═══════════════════════════════════════════════════${c_reset}"
 echo ""
 echo "下一步:"
 echo ""
-echo -e "  開瀏覽器: ${c_cyan}${c_bold}http://$VPS_IP:$WEB_PORT/setup${c_reset}"
+echo -e "  开浏览器: ${c_cyan}${c_bold}http://$VPS_IP:$WEB_PORT/setup${c_reset}"
 echo "  走 Setup Wizard:"
-echo "     1) 填 Web 管理員帳密"
-echo "     2) 填 TG API ID / HASH (從 my.telegram.org/apps 取得)"
-echo "     3) 上傳 google-service-account.json"
-echo "     4) 建立第一個部門"
+echo "     1) 填 Web 管理员帐密"
+echo "     2) 填 TG API ID / HASH (从 my.telegram.org/apps 取得)"
+echo "     3) 上传 google-service-account.json"
+echo "     4) 建立第一个部门"
 echo ""
-echo "  接著到 /depts/<name>/login 做 TG 登入 (手機 → 驗證碼 → 2FA)"
+echo "  接着到 /depts/<name>/login 做 TG 登入 (手机 → 验证码 → 2FA)"
 echo ""
 echo -e "${c_bold}常用指令${c_reset}"
-echo -e "  看狀態:     ${c_cyan}cd $INSTALL_DIR && docker compose ps${c_reset}"
-echo -e "  看實時 log: ${c_cyan}docker compose logs -f${c_reset}"
-echo -e "  重啟:       ${c_cyan}docker compose restart${c_reset}"
+echo -e "  看状态:     ${c_cyan}cd $INSTALL_DIR && docker compose ps${c_reset}"
+echo -e "  看实时 log: ${c_cyan}docker compose logs -f${c_reset}"
+echo -e "  重启:       ${c_cyan}docker compose restart${c_reset}"
 echo -e "  停止:       ${c_cyan}docker compose down${c_reset}"
-echo -e "  升級新版:   ${c_cyan}bash scripts/update.sh${c_reset}"
-echo -e "  回滾:       ${c_cyan}bash scripts/rollback.sh${c_reset}"
+echo -e "  升级新版:   ${c_cyan}bash scripts/update.sh${c_reset}"
+echo -e "  回滚:       ${c_cyan}bash scripts/rollback.sh${c_reset}"
 echo ""
 echo -e "${c_bold}安全${c_reset}"
-echo -e "  ${c_yellow}⚠${c_reset} port $WEB_PORT 建議只對內網開放 (防火牆擋公網)"
-echo -e "  ${c_yellow}⚠${c_reset} 公網訪問建議用 Cloudflare Tunnel 或 Caddy + HTTPS"
-echo -e "  ${c_yellow}⚠${c_reset} depts/*/session.txt 是 TG 登入憑證, 建議另存加密備份"
+echo -e "  ${c_yellow}⚠${c_reset} port $WEB_PORT 建议只对内网开放 (防火墙挡公网)"
+echo -e "  ${c_yellow}⚠${c_reset} 公网访问建议用 Cloudflare Tunnel 或 Caddy + HTTPS"
+echo -e "  ${c_yellow}⚠${c_reset} depts/*/session.txt 是 TG 登入凭证, 建议另存加密备份"
 echo ""

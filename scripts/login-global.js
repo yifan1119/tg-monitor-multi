@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// login-global.js — 全局進程 TG 登入 (CLI)
+// login-global.js — 全局进程 TG 登入 (CLI)
 //
 // 用法:
 //   node scripts/login-global.js <kind>
 //   node scripts/login-global.js title-sheet-writer
 //   node scripts/login-global.js review-report-writer
 //
-// 會切到 global/<kind>/ 目錄, 依手機號 / 驗證碼 / 2FA 產生 session.txt.
+// 会切到 global/<kind>/ 目录, 依手机号 / 验证码 / 2FA 产生 session.txt.
 
 const path = require("path");
 const fs = require("fs");
@@ -28,7 +28,7 @@ if (!fs.existsSync(targetDir)) {
   process.exit(1);
 }
 
-// 切 cwd 讓 dotenv 和 session.txt 用相對路徑自動對
+// 切 cwd 让 dotenv 和 session.txt 用相对路径自动对
 process.chdir(targetDir);
 console.log(`▸ cwd: ${targetDir}`);
 
@@ -51,17 +51,17 @@ const sessionString = fs.existsSync(SESSION_FILE)
   : "";
 
 (async () => {
-  console.log(`開始登入 Telegram (${kind})...`);
+  console.log(`开始登入 Telegram (${kind})...`);
 
   const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
     connectionRetries: 5,
   });
 
   await client.start({
-    phoneNumber: async () => await input.text("手機號 (含國碼, 如 +8613800138000): "),
-    password:    async () => await input.password("兩步驗證密碼 (沒有直接 Enter): "),
-    phoneCode:   async () => await input.text("驗證碼: "),
-    onError:     (err) => console.log("錯誤:", err.message || err),
+    phoneNumber: async () => await input.text("手机号 (含国码, 如 +8613800138000): "),
+    password:    async () => await input.password("两步验证密码 (没有直接 Enter): "),
+    phoneCode:   async () => await input.text("验证码: "),
+    onError:     (err) => console.log("错误:", err.message || err),
   });
 
   const me = await client.getMe();
@@ -74,12 +74,12 @@ const sessionString = fs.existsSync(SESSION_FILE)
     username: me.username || "",
     firstName: me.firstName || "",
   });
-  console.log(`  session 已寫入 global/${kind}/session.txt (${saved.length} bytes)`);
+  console.log(`  session 已写入 global/${kind}/session.txt (${saved.length} bytes)`);
   console.log("\n下一步:");
-  console.log(`  1. 確認 global/${kind}/config.json 已填好 routes / inputChatNames / spreadsheetId`);
-  console.log(`  2. 確認此號已加入 config.json 列出的所有群`);
+  console.log(`  1. 确认 global/${kind}/config.json 已填好 routes / inputChatNames / spreadsheetId`);
+  console.log(`  2. 确认此号已加入 config.json 列出的所有群`);
   console.log(`  3. 重生 ecosystem: node scripts/generate-ecosystem.js`);
-  console.log(`  4. 啟動: pm2 start ecosystem.config.js --only tg-${kind}`);
+  console.log(`  4. 启动: pm2 start ecosystem.config.js --only tg-${kind}`);
 
   await client.disconnect();
   process.exit(0);

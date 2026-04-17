@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# list-backups.sh — 列出所有可用備份
+# list-backups.sh — 列出所有可用备份
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKUPS="$ROOT/.backups"
 
 if [[ ! -d "$BACKUPS" ]]; then
-  echo "還沒有任何備份"
+  echo "还没有任何备份"
   exit 0
 fi
 
@@ -26,11 +26,11 @@ for dir in $(ls -1dt "$BACKUPS"/*/ 2>/dev/null); do
 done
 
 echo ""
-echo "共 $count 個備份"
+echo "共 $count 个备份"
 if [[ $count -gt 0 ]]; then
   total=$(du -sh "$BACKUPS" 2>/dev/null | cut -f1)
-  echo "總大小: $total"
+  echo "总大小: $total"
 fi
 echo ""
-echo "回滾: bash scripts/rollback.sh .backups/<timestamp>/"
-echo "清理: bash scripts/clean-backups.sh [--keep N]   (預設保留最近 5 個)"
+echo "回滚: bash scripts/rollback.sh .backups/<timestamp>/"
+echo "清理: bash scripts/clean-backups.sh [--keep N]   (预设保留最近 5 个)"

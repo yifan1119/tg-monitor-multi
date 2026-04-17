@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// scripts/new-global.js — 建立全局進程目錄
+// scripts/new-global.js — 建立全局进程目录
 //
-// 全局進程 (baseline 架構):
-//   - title-sheet-writer  : 跨部門群名變更彙總 (訂閱多個中轉群, 分流寫 Sheet)
-//   - review-report-writer: 審查報告閉環跟蹤 (訂閱多個審查報告群, 彙總到一本總表)
+// 全局进程 (baseline 架构):
+//   - title-sheet-writer  : 跨部门群名变更汇总 (订阅多个中转群, 分流写 Sheet)
+//   - review-report-writer: 审查报告闭环跟踪 (订阅多个审查报告群, 汇总到一本总表)
 //
 // 用法 (CLI):
 //   node scripts/new-global.js <kind>
 //   node scripts/new-global.js title-sheet-writer
 //   node scripts/new-global.js review-report-writer
 //
-// 跟 new-dept.js 一樣: 從 global/_template/<kind>/ 複製到 global/<kind>/
-// 不覆寫既有目錄. 實際 config 要自行編輯 + 走 login-global 產生 session.
+// 跟 new-dept.js 一样: 从 global/_template/<kind>/ 复制到 global/<kind>/
+// 不覆写既有目录. 实际 config 要自行编辑 + 走 login-global 产生 session.
 
 "use strict";
 
@@ -30,9 +30,9 @@ function readJsonSafe(p) {
 }
 
 function validateKind(kind) {
-  if (!kind) return { ok: false, reason: "必須指定 kind" };
+  if (!kind) return { ok: false, reason: "必须指定 kind" };
   if (!KINDS.includes(kind)) {
-    return { ok: false, reason: `kind 必須是: ${KINDS.join(" | ")}` };
+    return { ok: false, reason: `kind 必须是: ${KINDS.join(" | ")}` };
   }
   return { ok: true };
 }
@@ -45,18 +45,18 @@ async function createGlobal(kind, { tgApiId, tgApiHash } = {}) {
   const dstDir = path.join(GLOBAL_DIR, kind);
 
   if (!fs.existsSync(srcDir)) {
-    throw new Error(`找不到範本: global/_template/${kind}/`);
+    throw new Error(`找不到范本: global/_template/${kind}/`);
   }
   if (fs.existsSync(dstDir)) {
-    throw new Error(`已存在: global/${kind}/. 要重建先 rm -rf 它 (或用 Web 刪除)`);
+    throw new Error(`已存在: global/${kind}/. 要重建先 rm -rf 它 (或用 Web 删除)`);
   }
 
-  // TG API 憑證
+  // TG API 凭证
   const sys = readJsonSafe(SYSTEM_JSON) || {};
   const apiId = tgApiId || sys.tgApiId || "";
   const apiHash = tgApiHash || sys.tgApiHash || "";
 
-  // 建目錄 + 複製範本
+  // 建目录 + 复制范本
   fs.mkdirSync(dstDir);
   fs.mkdirSync(path.join(dstDir, "state"));
 
@@ -71,7 +71,7 @@ async function createGlobal(kind, { tgApiId, tgApiHash } = {}) {
 
   // .env
   const envContent = [
-    `# ${kind} — 從 system.json 繼承的 TG API 憑證`,
+    `# ${kind} — 从 system.json 继承的 TG API 凭证`,
     `TG_API_ID=${apiId}`,
     `TG_API_HASH=${apiHash}`,
     "",
@@ -84,12 +84,12 @@ async function createGlobal(kind, { tgApiId, tgApiHash } = {}) {
     apiIdSet: Boolean(apiId),
     apiHashSet: Boolean(apiHash),
     nextSteps: [
-      `編輯 global/${kind}/config.json (填 spreadsheetId / routes / inputChatNames)`,
+      `编辑 global/${kind}/config.json (填 spreadsheetId / routes / inputChatNames)`,
       !apiId ? `填入 TG_API_ID 到 global/${kind}/.env` : null,
       !apiHash ? `填入 TG_API_HASH 同上` : null,
       `跑 TG 登入: node scripts/login-global.js ${kind}`,
       `重生 PM2 配置: node scripts/generate-ecosystem.js`,
-      `啟動: pm2 start ecosystem.config.js --only tg-${kind}`,
+      `启动: pm2 start ecosystem.config.js --only tg-${kind}`,
     ].filter(Boolean),
   };
 }
@@ -134,13 +134,13 @@ if (require.main === module) {
     .then(result => {
       console.log(`✓ 建立: ${result.dir}`);
       if (!result.apiIdSet || !result.apiHashSet) {
-        console.log("  ⚠ TG API 憑證未設定 (data/system.json 沒值)");
+        console.log("  ⚠ TG API 凭证未设定 (data/system.json 没值)");
       }
       console.log("\n下一步:");
       result.nextSteps.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
     })
     .catch(err => {
-      console.error(`✗ 失敗: ${err.message}`);
+      console.error(`✗ 失败: ${err.message}`);
       process.exit(1);
     });
 }

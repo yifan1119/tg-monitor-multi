@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // scripts/new-dept.js
 //
-// 新增部門 — 核心邏輯。CLI 和 Web 都呼叫這個。
+// 新增部门 — 核心逻辑。CLI 和 Web 都呼叫这个。
 //
 // 用法 (CLI):
 //   node scripts/new-dept.js <dept_name> <display_name> "<output_chat>" <spreadsheet_id> "<sheet_tab>"
@@ -23,16 +23,16 @@ const SYSTEM_JSON = path.join(DATA_DIR, "system.json");
 
 const RESERVED_NAMES = new Set(["_template", "_shared", "_global", "root", "admin", "api", "new", "edit"]);
 
-// ─── 驗證 ────────────────────────────────────────────
+// ─── 验证 ────────────────────────────────────────────
 function validateDeptName(name) {
   if (!name || typeof name !== "string") {
-    return { ok: false, reason: "部門代號不能為空" };
+    return { ok: false, reason: "部门代号不能为空" };
   }
   if (!/^[a-z][a-z0-9-]{1,31}$/.test(name)) {
-    return { ok: false, reason: "部門代號必須：小寫字母開頭、2-32 字符、只含 a-z / 0-9 / -" };
+    return { ok: false, reason: "部门代号必须：小写字母开头、2-32 字符、只含 a-z / 0-9 / -" };
   }
   if (RESERVED_NAMES.has(name)) {
-    return { ok: false, reason: `「${name}」是保留字` };
+    return { ok: false, reason: `“${name}”是保留字` };
   }
   return { ok: true };
 }
@@ -49,62 +49,62 @@ function getSystemConfig() {
   return readJsonSafe(SYSTEM_JSON, {});
 }
 
-// ─── 建部門 ───────────────────────────────────────────
+// ─── 建部门 ───────────────────────────────────────────
 async function createDept({
   name,
   display,
   outputChat,
   spreadsheetId,
   sheetTab,
-  tgApiId,       // 可選：不提供就從 data/system.json 讀
-  tgApiHash,     // 可選：同上
+  tgApiId,       // 可选：不提供就从 data/system.json 读
+  tgApiHash,     // 可选：同上
 }) {
-  // 驗證名稱
+  // 验证名称
   const v = validateDeptName(name);
   if (!v.ok) throw new Error(v.reason);
 
-  // 必填檢查
+  // 必填检查
   const required = { display, outputChat, spreadsheetId, sheetTab };
   for (const [k, val] of Object.entries(required)) {
     if (!val || !String(val).trim()) {
-      throw new Error(`欄位 ${k} 不能為空`);
+      throw new Error(`字段 ${k} 不能为空`);
     }
   }
 
-  // 路徑衝突
+  // 路径冲突
   const target = path.join(DEPTS_DIR, name);
   if (fs.existsSync(target)) {
-    throw new Error(`部門已存在: depts/${name}`);
+    throw new Error(`部门已存在: depts/${name}`);
   }
 
-  // 模板檢查
+  // 模板检查
   if (!fs.existsSync(TEMPLATE_DIR)) {
-    throw new Error(`depts/_template/ 不存在，無法建立部門`);
+    throw new Error(`depts/_template/ 不存在，无法建立部门`);
   }
 
-  // TG API 憑證：若未提供則從 system.json 讀
+  // TG API 凭证：若未提供则从 system.json 读
   const sys = getSystemConfig();
   const apiId = tgApiId || sys.tgApiId || "";
   const apiHash = tgApiHash || sys.tgApiHash || "";
 
-  // ─── 建目錄 ──────────────────────────────────────
+  // ─── 建目录 ──────────────────────────────────────
   fs.mkdirSync(target);
   fs.mkdirSync(path.join(target, "state"));
 
   // ─── 生成 config.json ───────────────────────────
   const templateConfig = readJsonSafe(path.join(TEMPLATE_DIR, "config.json.example"), {});
 
-  // 清理 template 中的 _comment / _*_section 說明鍵
+  // 清理 template 中的 _comment / _*_section 说明键
   const cleaned = {};
   for (const [k, v] of Object.entries(templateConfig)) {
     if (!k.startsWith("_")) cleaned[k] = v;
   }
 
-  // 填入實際值
-  cleaned.configVersion = cleaned.configVersion || 1; // schema 版號 (為 migrate 腳本預留)
+  // 填入实际值
+  cleaned.configVersion = cleaned.configVersion || 1; // schema 版号 (为 migrate 脚本预留)
   cleaned.display = display;
   cleaned.outputChatName = outputChat;
-  cleaned.inputChatName = outputChat; // listener 推到這、sheet_writer 訂閱這
+  cleaned.inputChatName = outputChat; // listener 推到这、sheet_writer 订阅这
   cleaned.spreadsheetId = spreadsheetId;
   cleaned.sheetName = sheetTab;
 
@@ -116,15 +116,15 @@ async function createDept({
   // ─── 生成 .env ───────────────────────────────────
   const envContent = [
     "# Telegram API credentials",
-    "# 同一台 VPS 上的多個部門可共用同一組",
+    "# 同一台 VPS 上的多个部门可共用同一组",
     `TG_API_ID=${apiId}`,
     `TG_API_HASH=${apiHash}`,
     "",
   ].join("\n");
   fs.writeFileSync(path.join(target, ".env"), envContent);
 
-  // ─── 建立空 session.txt 佔位（實際內容靠登入填） ──
-  // 不建 session.txt — 讓 sheet_writer 等腳本明確報「缺 session.txt」而不是跑空內容
+  // ─── 建立空 session.txt 占位（实际内容靠登入填） ──
+  // 不建 session.txt — 让 sheet_writer 等脚本明确报“缺 session.txt”而不是跑空内容
 
   return {
     name,
@@ -132,28 +132,28 @@ async function createDept({
     apiIdSet: Boolean(apiId),
     apiHashSet: Boolean(apiHash),
     nextSteps: [
-      !apiId ? "填入 TG_API_ID 到 depts/" + name + "/.env (或先跑 setup 存系統級)" : null,
+      !apiId ? "填入 TG_API_ID 到 depts/" + name + "/.env (或先跑 setup 存系统级)" : null,
       !apiHash ? "填入 TG_API_HASH 同上" : null,
       "跑 TG 登入: node scripts/login-dept.js " + name,
       "重新生成 PM2 配置: node scripts/generate-ecosystem.js",
-      "啟動進程: pm2 start ecosystem.config.js --only tg-*-" + name,
+      "启动进程: pm2 start ecosystem.config.js --only tg-*-" + name,
     ].filter(Boolean),
   };
 }
 
-// ─── 刪部門（保留以備後用） ───────────────────────────
+// ─── 删部门（保留以备后用） ───────────────────────────
 async function deleteDept(name) {
   const v = validateDeptName(name);
   if (!v.ok) throw new Error(v.reason);
   const target = path.join(DEPTS_DIR, name);
-  if (!fs.existsSync(target)) throw new Error(`部門不存在: ${name}`);
-  // 不直接 rm -rf — 移到 .trash-<timestamp> 避免誤刪
+  if (!fs.existsSync(target)) throw new Error(`部门不存在: ${name}`);
+  // 不直接 rm -rf — 移到 .trash-<timestamp> 避免误删
   const trashDir = path.join(DEPTS_DIR, `.trash-${Date.now()}-${name}`);
   fs.renameSync(target, trashDir);
   return { movedTo: trashDir };
 }
 
-// ─── 列部門 ───────────────────────────────────────────
+// ─── 列部门 ───────────────────────────────────────────
 function listDepts() {
   if (!fs.existsSync(DEPTS_DIR)) return [];
   return fs.readdirSync(DEPTS_DIR).filter(n => {
@@ -186,15 +186,15 @@ if (require.main === module) {
 
   createDept({ name, display, outputChat, spreadsheetId, sheetTab })
     .then(result => {
-      console.log(`✓ 部門已建立: ${result.deptDir}`);
+      console.log(`✓ 部门已建立: ${result.deptDir}`);
       if (!result.apiIdSet || !result.apiHashSet) {
-        console.log("  ⚠ TG API 憑證未設定（走 Web setup 或手動填 .env）");
+        console.log("  ⚠ TG API 凭证未设定（走 Web setup 或手动填 .env）");
       }
       console.log("\n下一步:");
       result.nextSteps.forEach((s, i) => console.log(`  ${i + 1}. ${s}`));
     })
     .catch(err => {
-      console.error(`✗ 失敗: ${err.message}`);
+      console.error(`✗ 失败: ${err.message}`);
       process.exit(1);
     });
 }

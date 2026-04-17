@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 // scripts/generate-ecosystem.js
 //
-// 掃 depts/ 所有部門，生成 ecosystem.config.js (PM2 設定)
+// 扫 depts/ 所有部门，生成 ecosystem.config.js (PM2 设定)
 //
-// 每部門生成 3 條進程:
+// 每部门生成 3 条进程:
 //   tg-listener-<name>
 //   tg-system-events-<name>
 //   tg-sheet-writer-<name>
 //
-// 全域進程 (title-sheet-writer / review-report-writer) MVP 不自動生成
-// — 它們需要獨立的 session.txt 和 config, 由管理員另行手動加
+// 全域进程 (title-sheet-writer / review-report-writer) MVP 不自动生成
+// — 它们需要独立的 session.txt 和 config, 由管理员另行手动加
 //
 // 用法:
 //   node scripts/generate-ecosystem.js
-//   node scripts/generate-ecosystem.js --dry-run   (只印不寫)
+//   node scripts/generate-ecosystem.js --dry-run   (只印不写)
 
 "use strict";
 
@@ -61,7 +61,7 @@ function buildGlobalApp(kind) {
   const spec = GLOBAL_KINDS.find(p => p.kind === kind);
   const cwd = path.join(GLOBAL_DIR, kind);
   return {
-    name: `tg-${kind}`,  // 全局進程: 不帶 dept 尾綴
+    name: `tg-${kind}`,  // 全局进程: 不带 dept 尾缀
     script: path.join(SHARED_DIR, spec.script),
     cwd,
     autorestart: true,
@@ -100,9 +100,9 @@ function generate() {
 function serialize(config) {
   const header = [
     "// ecosystem.config.js",
-    "// 自動生成 — 勿手動編輯。重跑: node scripts/generate-ecosystem.js",
-    `// 生成時間: ${new Date().toISOString()}`,
-    `// 部門: ${config.deptCount} 個 × 3 類 + 全局: ${config.globalCount} 個 = ${config.apps.length} 個進程`,
+    "// 自动生成 — 勿手动编辑。重跑: node scripts/generate-ecosystem.js",
+    `// 生成时间: ${new Date().toISOString()}`,
+    `// 部门: ${config.deptCount} 个 × 3 类 + 全局: ${config.globalCount} 个 = ${config.apps.length} 个进程`,
     "",
     "module.exports = ",
   ].join("\n");
@@ -112,10 +112,10 @@ function serialize(config) {
 function summary(config) {
   const deptProcs = config.deptCount * 3;
   const parts = [
-    `${config.deptCount} 部門 × 3 類 = ${deptProcs}`,
+    `${config.deptCount} 部门 × 3 类 = ${deptProcs}`,
   ];
   if (config.globalCount > 0) parts.push(`${config.globalCount} 全局`);
-  return `${parts.join(" + ")} = ${config.apps.length} 個進程`;
+  return `${parts.join(" + ")} = ${config.apps.length} 个进程`;
 }
 
 function main() {
@@ -134,7 +134,7 @@ function main() {
   console.log(`[✓] 已生成: ${OUT_PATH}`);
   console.log(`    ${summary(result)}`);
   if (result.deptCount === 0 && result.globalCount === 0) {
-    console.log(`    (當前沒有部門也沒有全局進程, ecosystem 空的)`);
+    console.log(`    (当前没有部门也没有全局进程, ecosystem 空的)`);
   }
 }
 

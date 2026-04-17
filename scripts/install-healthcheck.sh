@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# install-healthcheck.sh — 安裝 / 移除 cron 健康檢查
+# install-healthcheck.sh — 安装 / 移除 cron 健康检查
 #
 # 用法:
-#   bash scripts/install-healthcheck.sh          # 裝: 每 5 分鐘跑一次
-#   bash scripts/install-healthcheck.sh --status # 看狀態
+#   bash scripts/install-healthcheck.sh          # 装: 每 5 分钟跑一次
+#   bash scripts/install-healthcheck.sh --status # 看状态
 #   bash scripts/install-healthcheck.sh --remove # 移除
 
 set -euo pipefail
@@ -18,18 +18,18 @@ ACTION="${1:-install}"
 case "$ACTION" in
   --status|-s|status)
     if crontab -l 2>/dev/null | grep -qF "$CRON_MARKER"; then
-      echo "✓ healthcheck cron 已啟用"
+      echo "✓ healthcheck cron 已启用"
       crontab -l | grep -F "$CRON_MARKER"
       echo ""
       if [[ -f "$ROOT/.healthcheck/healthcheck.log" ]]; then
-        echo "最近 5 條 log:"
+        echo "最近 5 条 log:"
         tail -5 "$ROOT/.healthcheck/healthcheck.log"
       else
-        echo "(尚無 log, 可能還沒跑過第一次)"
+        echo "(尚无 log, 可能还没跑过第一次)"
       fi
     else
-      echo "✗ healthcheck cron 未啟用"
-      echo "  執行 bash scripts/install-healthcheck.sh 啟用"
+      echo "✗ healthcheck cron 未启用"
+      echo "  执行 bash scripts/install-healthcheck.sh 启用"
     fi
     ;;
 
@@ -38,7 +38,7 @@ case "$ACTION" in
       crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" | crontab -
       echo "✓ 已移除 healthcheck cron"
     else
-      echo "(本來就沒裝)"
+      echo "(本来就没装)"
     fi
     ;;
 
@@ -46,14 +46,14 @@ case "$ACTION" in
     if [[ ! -x "$SCRIPT_PATH" ]]; then
       chmod +x "$SCRIPT_PATH"
     fi
-    # 先移除舊的 (避免重複)
+    # 先移除旧的 (避免重复)
     ( crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" ; echo "$CRON_LINE" ) | crontab -
-    echo "✓ healthcheck cron 已啟用 (每 5 分鐘)"
+    echo "✓ healthcheck cron 已启用 (每 5 分钟)"
     echo "  $CRON_LINE"
     echo ""
-    echo "看狀態:  bash scripts/install-healthcheck.sh --status"
+    echo "看状态:  bash scripts/install-healthcheck.sh --status"
     echo "移除:    bash scripts/install-healthcheck.sh --remove"
-    echo "看日誌:  tail -f .healthcheck/healthcheck.log"
+    echo "看日志:  tail -f .healthcheck/healthcheck.log"
     ;;
 
   *)
