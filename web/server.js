@@ -1182,16 +1182,6 @@ app.post("/settings/healthcheck/remove", async (_req, res) => {
   }
 });
 
-// ─── 404 ─────────────────────────────────────────────
-app.use((_req, res) => {
-  res.status(404).render("pages/placeholder", {
-    title: "404",
-    subtitle: "页面不存在",
-    stage: "",
-    description: "你访问的路径不存在。返回总览看看？",
-    active: "",
-  });
-});
 
 // ─── 启动 ────────────────────────────────────────────
 app.listen(PORT, () => {
@@ -1324,3 +1314,11 @@ app.post("/ops/rollback/:ts", async (req, res) => {
   catch (e) { renderUpdateResult(res, `回滚失败 · ${req.params.ts}`, { log: e.message }, e.message); }
 });
 
+
+// ─── 404 (必须放最后, 让所有具体路由先匹配) ───────
+app.use((_req, res) => {
+  res.status(404).render("pages/placeholder", {
+    title: "404", subtitle: "页面不存在", stage: "",
+    description: "你访问的路径不存在。返回总览看看？", active: "",
+  });
+});
