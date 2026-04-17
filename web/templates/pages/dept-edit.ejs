@@ -103,8 +103,36 @@
     </div>
     <div class="form-group">
       <label>中转群名称 (outputChatName / inputChatName)</label>
-      <input type="text" name="outputChatName" value="<%= fd.outputChatName != null ? fd.outputChatName : (cfg.outputChatName || '') %>" required>
-      <div class="hint">listener 推这个群、sheet_writer 订阅这个群. 两边同步更新</div>
+      <input type="text" name="outputChatName" list="tg-groups" value="<%= fd.outputChatName != null ? fd.outputChatName : (cfg.outputChatName || '') %>" required>
+      <datalist id="tg-groups"></datalist>
+      <div class="hint">
+        listener 推这个群、sheet_writer 订阅这个群. 两边同步更新.
+        <% if (dept.sessionOk) { %>
+          <button type="button" class="btn ghost" style="padding:0.15rem 0.5rem;font-size:0.7rem;margin-left:0.5rem;" onclick="loadTgGroups()">🔍 从该号加入的群选</button>
+          <span id="tg-groups-meta" style="font-size:0.72rem;color:var(--text-dim);margin-left:0.4rem;"></span>
+        <% } else { %>
+          <span style="color:var(--text-dim);font-size:0.72rem;">(登入 TG 后可用下拉选群)</span>
+        <% } %>
+      </div>
+      <script>
+        async function loadTgGroups() {
+          const meta = document.getElementById("tg-groups-meta");
+          meta.textContent = '拉取中...';
+          try {
+            const r = await fetch("/api/tg-dialogs/dept/<%= dept.name %>").then(r => r.json());
+            if (!r.ok) { meta.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>'; return; }
+            const dl = document.getElementById("tg-groups");
+            dl.innerHTML = '';
+            r.dialogs.forEach(d => {
+              const opt = document.createElement("option");
+              opt.value = d.title;
+              opt.label = d.type + (d.unread ? ' · 未读 ' + d.unread : '');
+              dl.appendChild(opt);
+            });
+            meta.innerHTML = '<span style="color:var(--green);">✓ 载入 ' + r.dialogs.length + ' 个群</span>' + (r.cached ? ' <span style="color:var(--text-dim);">(缓存)</span>' : '') + ' — 点输入框选择';
+          } catch (e) { meta.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
+        }
+      </script>
     </div>
   </div>
 
@@ -153,13 +181,49 @@
     <div class="panel-title">关键字</div>
     <div class="form-group">
       <label>关键字列表（用逗号分隔）</label>
-      <input type="text" name="keywords" style="font-family: 'JetBrains Mono', monospace;"
-        value="<%= fd.keywords != null ? fd.keywords : (cfg.keywords || []).join(', ') %>">
+      <input type="text" id="fld-keywords" name="keywords" style="font-family: 'JetBrains Mono', monospace;"
+        value="<%= fd.keywords != null ? fd.keywords : (cfg.keywords || []).join(', ') %>" oninput="previewMatch()">
       <div class="hint">
         例：<code>到期, 续费, 下架, 打款, 欠费</code><br>
         listener 比对群消息时用. 支持中文逗号或英文逗号. 大小写敏感，注意繁简体.
       </div>
     </div>
+    <div class="form-group">
+      <label style="font-size: 0.8rem; color: var(--text-dim);">🧪 测试文本 (看命中哪些关键字, 不保存):</label>
+      <textarea id="fld-preview-text" rows="3" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;"
+        placeholder="贴一段真实消息进来, 看会不会命中" oninput="previewMatch()">XX客户到期提醒, 请确认是否续费. 另外某个账号欠费3天了.</textarea>
+    </div>
+    <div id="preview-out" style="padding: 0.75rem 1rem; background: rgba(7, 10, 21, 0.5); border-radius: 6px; font-size: 0.85rem; line-height: 1.8; color: var(--text-dim); min-height: 60px;">
+      <span style="color: var(--text-dim);">改关键字或测试文本, 这里会实时显示命中结果</span>
+    </div>
+    <script>
+      function previewMatch() {
+        const kwStr = document.getElementById("fld-keywords").value;
+        const text = document.getElementById("fld-preview-text").value;
+        const out = document.getElementById("preview-out");
+        const keywords = kwStr.split(/[,，、\n\r]+/).map(s => s.trim()).filter(Boolean);
+        if (keywords.length === 0) { out.innerHTML = '<span style="color:var(--text-dim);">没有关键字</span>'; return; }
+        if (!text) { out.innerHTML = '<span style="color:var(--text-dim);">没有测试文本</span>'; return; }
+        const hits = keywords.filter(k => text.includes(k));
+        // 高亮原文中命中部分
+        let html = text;
+        // 先做 HTML escape
+        html = html.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // 由长到短替换防短字串包在长字串里漏标
+        keywords.slice().sort((a, b) => b.length - a.length).forEach(k => {
+          if (!k) return;
+          const esc = k.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const re = new RegExp(esc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          html = html.replace(re, '<mark style="background:rgba(255,201,64,0.35);color:var(--text-0);padding:0 2px;border-radius:2px;">' + esc + '</mark>');
+        });
+        const color = hits.length > 0 ? 'var(--green)' : 'var(--text-dim)';
+        const summary = hits.length > 0
+          ? '<span style="color:var(--green);font-weight:700;">✓ 命中 ' + hits.length + ' 个</span>: ' + hits.map(h => '<code style="background:rgba(255,201,64,0.2);padding:0 4px;border-radius:3px;">' + h + '</code>').join(' ')
+          : '<span style="color:var(--text-dim);">没命中任何关键字</span>';
+        out.innerHTML = '<div style="margin-bottom:0.5rem;font-size:0.8rem;">' + summary + '</div><div style="color:var(--text-1);">' + html + '</div>';
+      }
+      previewMatch();
+    </script>
   </div>
 
   <div class="panel">

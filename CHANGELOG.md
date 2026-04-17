@@ -4,6 +4,26 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.3.4-docker] — 2026-04-17
+
+**零 CLI 系列 #3** — TG 群下拉 · 关键字预览 · Dashboard 健康摘要.
+
+### 新增
+- **TG 群选择器** — 用已登入的 session 拉该号加入的 dialogs, 给输入框做 datalist 建议
+  - 部门编辑页 · 中转群字段: 「🔍 从该号加入的群选」按钮
+  - 全局 title-sheet-writer 编辑页 · routes: 每条路由的「中转群名称」都得 datalist
+  - 60s 内存快取 (防 TG 流控)
+  - `web/lib/tg-dialogs.js` 新增
+  - `GET /api/tg-dialogs/dept/:name` + `GET /api/tg-dialogs/global/:kind`
+- **关键字命中预览** — 部门编辑页 · 关键字 panel 下
+  - 测试文本 textarea + 实时命中高亮 (黄色 mark)
+  - 显示命中关键字列表 + 命中计数
+- **Dashboard 健康摘要卡** — 总览页顶部一排灯
+  - 部门进程 (X/Y online + 几个需登入) · 全局进程 · Healthcheck · 备份 (最近 N 天前) · Google SA
+  - 绿 / 黄 / 灰 / 红 分档, 一眼看完整体健康
+
+---
+
 ## [0.3.3-docker] — 2026-04-17
 
 **零 CLI 系列 #2** — 实时日志 · 部门复制 · 连线测试.

@@ -1,6 +1,6 @@
 {
   "name": "tg-monitor-multi",
-  "version": "0.3.3-docker",
+  "version": "0.3.4-docker",
   "description": "多部門 Telegram 群組監控系統模板（Node.js + PM2）— 一台 VPS 可承載 N 個部門",
   "private": true,
   "license": "UNLICENSED",

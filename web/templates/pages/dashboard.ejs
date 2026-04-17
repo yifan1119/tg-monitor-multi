@@ -46,7 +46,72 @@
 
 <% } else { %>
 
-  <!-- ═══ 有部门：KPI + 部门卡 + 告警 + PM2 表 ═══ -->
+  <!-- ═══ 健康摘要卡 (顶部一排灯) ═══ -->
+  <% const hs = locals.healthSummary || {}; %>
+  <div class="panel" style="padding: 1rem 1.25rem;">
+    <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+      <%
+        const deptsOk = hs.depts && hs.depts.total > 0 && hs.depts.online === hs.depts.totalProcs && hs.depts.sessionBroken === 0;
+        const deptsPartial = hs.depts && (hs.depts.online < hs.depts.totalProcs || hs.depts.sessionBroken > 0);
+      %>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="dot <%= deptsOk ? 'green' : (deptsPartial ? 'yellow' : 'gray') %>" style="width: 12px; height: 12px;"></span>
+        <div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">部门进程</div>
+          <div style="font-size: 0.9rem;"><strong><%= hs.depts.online %></strong> / <%= hs.depts.totalProcs %> online
+            <% if (hs.depts.sessionBroken > 0) { %> · <span style="color:var(--yellow);"><%= hs.depts.sessionBroken %> 需登入</span><% } %>
+          </div>
+        </div>
+      </div>
+
+      <%
+        const globalOk = hs.globals.built === hs.globals.total && hs.globals.online === hs.globals.total;
+        const globalPartial = hs.globals.built > 0 && hs.globals.online < hs.globals.built;
+      %>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="dot <%= globalOk ? 'green' : (globalPartial ? 'yellow' : (hs.globals.built === 0 ? 'gray' : 'red')) %>" style="width: 12px; height: 12px;"></span>
+        <div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">全局进程</div>
+          <div style="font-size: 0.9rem;"><strong><%= hs.globals.online %></strong> / <%= hs.globals.total %> online
+            <% if (hs.globals.built < hs.globals.total) { %> · <span style="color:var(--text-dim);"><%= hs.globals.total - hs.globals.built %> 未建</span><% } %>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="dot <%= hs.healthcheck ? 'green' : 'gray' %>" style="width: 12px; height: 12px;"></span>
+        <div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">Healthcheck</div>
+          <div style="font-size: 0.9rem;"><% if (hs.healthcheck) { %>已启用<% } else { %><a href="/settings" style="color:var(--yellow);">去启用</a><% } %></div>
+        </div>
+      </div>
+
+      <%
+        const backupOk = hs.backup.count > 0 && hs.backup.lastAgo !== null && hs.backup.lastAgo < 7;
+        const backupStale = hs.backup.lastAgo !== null && hs.backup.lastAgo >= 7;
+      %>
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="dot <%= backupOk ? 'green' : (backupStale ? 'yellow' : 'gray') %>" style="width: 12px; height: 12px;"></span>
+        <div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">备份</div>
+          <div style="font-size: 0.9rem;">
+            <% if (hs.backup.count === 0) { %>无备份
+            <% } else { %><strong><%= hs.backup.count %></strong> 个 · 最近 <%= hs.backup.lastAgo === 0 ? '今日' : hs.backup.lastAgo + ' 天前' %><% } %>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 0.6rem;">
+        <span class="dot <%= hs.gsa ? 'green' : 'red' %>" style="width: 12px; height: 12px;"></span>
+        <div>
+          <div style="font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;">Google SA</div>
+          <div style="font-size: 0.9rem;"><% if (hs.gsa) { %>已设置<% } else { %><a href="/setup" style="color:var(--red);">未设置</a><% } %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ KPI + 部门卡 + 告警 + PM2 表 ═══ -->
   <div class="kpi-grid">
     <div class="kpi">
       <div class="kpi-label">部门数</div>

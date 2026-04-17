@@ -103,6 +103,35 @@
       <br>
       有几个部门，就要有几条路由（不然那些部门的群名变更不会被写）。
     </div>
+    <datalist id="tg-groups"></datalist>
+    <% if (g.sessionOk) { %>
+      <div style="margin-bottom: 0.75rem;">
+        <button type="button" class="btn ghost" style="padding:0.3rem 0.7rem;font-size:0.72rem;" onclick="loadTgGroups()">🔍 载入该汇总员号加入的群 (给路由做下拉建议)</button>
+        <span id="tg-groups-meta" style="font-size:0.72rem;color:var(--text-dim);margin-left:0.5rem;"></span>
+      </div>
+      <script>
+        async function loadTgGroups() {
+          const meta = document.getElementById("tg-groups-meta");
+          meta.textContent = '拉取中...';
+          try {
+            const r = await fetch("/api/tg-dialogs/global/<%= kind %>").then(r => r.json());
+            if (!r.ok) { meta.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>'; return; }
+            const dl = document.getElementById("tg-groups");
+            dl.innerHTML = '';
+            r.dialogs.forEach(d => {
+              const opt = document.createElement("option");
+              opt.value = d.title; opt.label = d.type;
+              dl.appendChild(opt);
+            });
+            // 把 datalist 应用到所有 route_key 输入
+            document.querySelectorAll('input[name="route_key"]').forEach(i => i.setAttribute('list', 'tg-groups'));
+            meta.innerHTML = '<span style="color:var(--green);">✓ 载入 ' + r.dialogs.length + ' 个群</span>' + (r.cached ? ' <span style="color:var(--text-dim);">(缓存)</span>' : '') + ' — 点「中转群名称」输入框看下拉';
+          } catch (e) { meta.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
+        }
+      </script>
+    <% } else { %>
+      <div style="margin-bottom: 0.75rem; color: var(--text-dim); font-size: 0.78rem;">💡 登入 TG 后可用下拉选群 (现在要手打群名)</div>
+    <% } %>
     <div id="routes-container">
       <% const routes = cfg.routes || {}; const routeEntries = Object.entries(routes); %>
       <% if (routeEntries.length === 0) { routeEntries.push(["", { instance: "", spreadsheetId: "", sheetName: "" }]); } %>
@@ -115,7 +144,7 @@
           </div>
           <div class="form-group">
             <label>中转群名称（消息来源）</label>
-            <input type="text" name="route_key" value="<%= key %>" placeholder="例: 悦达-业务审查">
+            <input type="text" name="route_key" list="tg-groups" value="<%= key %>" placeholder="例: 悦达-业务审查">
             <div class="hint">这个"汇总员"号<strong>必须已加入这个群</strong>. 填跟 listener 推送目标（该部门的 outputChatName）一模一样的名字</div>
           </div>
           <div class="form-group">
@@ -151,7 +180,7 @@
             <button type="button" class="btn ghost" style="padding: 0.2rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);" onclick="this.closest('.route-row').remove()">✕ 删除此路由</button>
           </div>
           <div class="form-group"><label>中转群名称（消息来源）</label>
-            <input type="text" name="route_key" placeholder="例: 悦达-业务审查">
+            <input type="text" name="route_key" list="tg-groups" placeholder="例: 悦达-业务审查">
             <div class="hint">"汇总员"号必须已加入这个群</div></div>
           <div class="form-group"><label>部门代号</label>
             <input type="text" name="route_inst" placeholder="例: yueda"></div>

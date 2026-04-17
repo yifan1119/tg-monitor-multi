@@ -224,6 +224,26 @@ app.get("/dashboard", async (_req, res) => {
     dataProvider.listProcesses(),
     dataProvider.listAlerts(),
   ]);
+  // 顶部健康摘要卡
+  const globalKinds = GLOBAL_KINDS;
+  const globalProcsOnline = procs.filter(p => globalKinds.some(k => p.name === `tg-${k}`) && p.status === "online").length;
+  const globalsBuilt = listGlobals().length;
+  const deptProcsOnline = procs.filter(p => p.dept && p.dept !== "_global" && p.status === "online").length;
+  const deptProcsTotal = depts.length * 3;
+  const healthcheck = readHealthcheckStatus();
+  const backupList = updateManager.listBackups();
+  const lastBackup = backupList[0] || null;
+  const lastBackupAgo = lastBackup ? Math.floor((Date.now() - new Date(lastBackup.mtime).getTime()) / 86400000) : null;
+  const gsaExists = fs.existsSync(GOOGLE_SA_PATH);
+
+  const healthSummary = {
+    depts: { total: depts.length, online: deptProcsOnline, totalProcs: deptProcsTotal, sessionBroken: depts.filter(d => !d.sessionOk).length },
+    globals: { total: globalKinds.length, built: globalsBuilt, online: globalProcsOnline },
+    healthcheck: healthcheck.enabled,
+    backup: { count: backupList.length, lastAgo: lastBackupAgo, lastTs: lastBackup ? lastBackup.ts : null },
+    gsa: gsaExists,
+  };
+
   res.render("pages/dashboard", {
     title: "总览",
     active: "dashboard",
@@ -231,6 +251,7 @@ app.get("/dashboard", async (_req, res) => {
     depts,
     procs,
     alerts,
+    healthSummary,
   });
 });
 
@@ -896,6 +917,26 @@ app.get("/api/logs/global/:kind", (req, res) => {
   const lines = Math.min(Number(req.query.lines) || 100, 500);
   const r = logReader.readTail({ scope: "global", kind, type, lines });
   res.json(r);
+});
+
+// ─── TG 群列表 API ─────────────────────────────
+const tgDialogs = require("./lib/tg-dialogs");
+
+app.get("/api/tg-dialogs/dept/:name", async (req, res) => {
+  try {
+    const r = await tgDialogs.listDialogs("dept", req.params.name);
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+app.get("/api/tg-dialogs/global/:kind", async (req, res) => {
+  try {
+    const r = await tgDialogs.listDialogs("global", req.params.kind);
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
 });
 
 // ─── 连线测试 API ─────────────────────────────
