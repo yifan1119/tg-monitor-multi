@@ -27,6 +27,28 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/tg-monitor-multi}"
 REPO_URL="${REPO_URL:-https://github.com/yifan1119/tg-monitor-multi.git}"
 BRANCH="${BRANCH:-main}"
 WEB_PORT="${WEB_PORT:-5003}"
+WEB_PORT_AUTO="${WEB_PORT_AUTO:-1}"   # 1=端口被占自动往上找; 0=强制用 WEB_PORT
+
+# 回传 0=被占, 1=空闲
+port_in_use() {
+  local p="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${p}$"
+  elif command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$p" -sTCP:LISTEN >/dev/null 2>&1
+  else
+    (exec 3<>/dev/tcp/127.0.0.1/"$p") >/dev/null 2>&1
+  fi
+}
+
+pick_free_port() {
+  local p="$1"
+  for _ in $(seq 1 50); do
+    port_in_use "$p" || { echo "$p"; return 0; }
+    p=$((p + 1))
+  done
+  return 1
+}
 
 c_green='\033[0;32m'; c_yellow='\033[0;33m'; c_red='\033[0;31m'
 c_cyan='\033[0;36m'; c_bold='\033[1m'; c_reset='\033[0m'
@@ -110,14 +132,36 @@ if [[ ! -f secrets/google-service-account.json ]]; then
   ok "建立 secrets/google-service-account.json 占位 (setup 后会被 Web 上传覆写)"
 fi
 
-# .env for docker-compose
-if [[ ! -f .env ]]; then
-  cat > .env <<EOF
-# Docker compose 部署层配置
+# 先停掉自己的旧容器, 避免它占着端口干扰下面检测
+if docker ps --format '{{.Names}}' | grep -qx tg-monitor-multi; then
+  log "停掉旧的 tg-monitor-multi 容器 (避免端口冲突检测误判)"
+  docker compose down >/dev/null 2>&1 || docker stop tg-monitor-multi >/dev/null 2>&1 || true
+fi
+
+# 端口检测: 被占就自动往上找 (除非 WEB_PORT_AUTO=0)
+if port_in_use "$WEB_PORT"; then
+  if [[ "$WEB_PORT_AUTO" == "1" ]]; then
+    warn "port $WEB_PORT 被占, 自动找空闲端口..."
+    if ! NEW_PORT=$(pick_free_port $((WEB_PORT + 1))); then
+      err "连找 50 个都被占, 放弃. 请用 WEB_PORT=xxxx 指定"
+      exit 5
+    fi
+    ok "改用 port $NEW_PORT (原 $WEB_PORT 被占)"
+    WEB_PORT="$NEW_PORT"
+  else
+    err "port $WEB_PORT 被占且 WEB_PORT_AUTO=0. 换端口或停掉占用进程"
+    exit 5
+  fi
+else
+  ok "port $WEB_PORT 空闲"
+fi
+
+# .env for docker-compose (每次覆写, 保证和上面检测到的 port 一致)
+cat > .env <<EOF
+# Docker compose 部署层配置 (install.sh 自动写, 手改会被下次 install 覆盖)
 WEB_PORT=$WEB_PORT
 EOF
-  ok "建立 .env (WEB_PORT=$WEB_PORT)"
-fi
+ok "写入 .env (WEB_PORT=$WEB_PORT)"
 
 # ─── 4. Docker build + up ──────────────────────────
 log "docker compose up (build + start)..."
