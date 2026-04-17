@@ -166,6 +166,36 @@ function allowTitleEvent(peerId, marker) {
 const dedupe = new Set();
 setInterval(() => dedupe.clear(), 3600000).unref();
 
+// 群名缓存 (peerId → 当前群名), 持久化在 state/title-cache.json
+// TG 的改名事件只带新名, 原名靠这个缓存对照
+const TITLE_CACHE_FILE = path.resolve("./state/title-cache.json");
+let titleCache = {};
+try {
+  if (fs.existsSync(TITLE_CACHE_FILE)) titleCache = JSON.parse(fs.readFileSync(TITLE_CACHE_FILE, "utf8")) || {};
+} catch {}
+function saveTitleCache() {
+  try {
+    if (!fs.existsSync(path.dirname(TITLE_CACHE_FILE))) fs.mkdirSync(path.dirname(TITLE_CACHE_FILE), { recursive: true });
+    fs.writeFileSync(TITLE_CACHE_FILE, JSON.stringify(titleCache, null, 2));
+  } catch {}
+}
+async function primeTitleCache() {
+  try {
+    const dialogs = await client.getDialogs({ limit: 200 });
+    for (const d of dialogs) {
+      if (!d.isGroup && !d.isChannel) continue;
+      const id = d.entity?.id?.toString?.() || d.entity?.chatId?.toString?.() || d.entity?.channelId?.toString?.();
+      if (!id) continue;
+      const name = (d.name || "").trim();
+      if (!name) continue;
+      // 缓存当前群名 (后续改名事件拿这个做"原群名")
+      titleCache[id] = name;
+    }
+    saveTitleCache();
+    console.log(`[title-cache] primed ${Object.keys(titleCache).length} groups`);
+  } catch (e) { console.warn("primeTitleCache:", e.message); }
+}
+
 // ═════════════════════════════════════════════════════
 // 3. Sheet 写入 (带 retry + 本地队列)
 // ═════════════════════════════════════════════════════
@@ -485,12 +515,17 @@ async function handleMessage(message) {
     if (!allowTitleEvent(peerId, `event::${eventTitle}`)) return;
     dedupe.add(dedupeKey);
 
+    // 从缓存取原群名 (TG event 只带新名, 原名靠本地 titleCache)
+    const oldTitle = titleCache[peerId] || chatInfo.name || "(未知)";
+    titleCache[peerId] = eventTitle;
+    saveTitleCache();
+
     const output = [
       "【群名称变更提醒】",
       "",
-      `来源群：${chatInfo.name}`,
-      `操作人：${operatorName}`,
+      `原群名：${oldTitle}`,
       `新群名：${eventTitle}`,
+      `操作人：${operatorName}`,
     ].join("\n");
 
     // 推中转群 (给人看)
@@ -498,7 +533,12 @@ async function handleMessage(message) {
       await client.sendMessage(outputEntity, { message: output }).catch(e => console.error("推中转群失败:", e.message));
     }
     // 写 Sheet (异步 retry)
-    enqueueSheetWrite(() => writeWithRetry("title", { oldTitle: "", newTitle: eventTitle, senderName: operatorName, sourceGroup: chatInfo.name, sourceGroupId: peerId }));
+    enqueueSheetWrite(() => writeWithRetry("title", {
+      oldTitle, newTitle: eventTitle,
+      senderName: operatorName,
+      sourceGroup: eventTitle, // 新群名 = 当前群名
+      sourceGroupId: peerId,
+    }));
     return;
   }
 
@@ -595,6 +635,11 @@ async function runBackfill() {
 
 (async () => {
   await client.connect();
+
+  // 首次启动: 扫所有群把当前名字缓存, 后续改名才能显示原名
+  await primeTitleCache();
+  // 每 30 分钟刷新一次 (漏掉的新群 / 改名补齐)
+  setInterval(() => primeTitleCache().catch(() => {}), 30 * 60 * 1000).unref();
 
   if (outputChatName) {
     outputEntity = await findDialogEntityByName(outputChatName);

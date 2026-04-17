@@ -101,12 +101,20 @@ async function createDept({
   }
 
   // 填入实际值
-  cleaned.configVersion = cleaned.configVersion || 1; // schema 版号 (为 migrate 脚本预留)
+  cleaned.configVersion = cleaned.configVersion || 1;
   cleaned.display = display;
   cleaned.outputChatName = outputChat;
-  cleaned.inputChatName = outputChat; // listener 推到这、sheet_writer 订阅这
+  cleaned.inputChatName = outputChat;
   cleaned.spreadsheetId = spreadsheetId;
-  cleaned.sheetName = sheetTab;
+  // sheetName (关键字命中 tab): 用户没填就默认 "关键词命中-<dept>"
+  cleaned.sheetName = sheetTab || `关键词命中-${name}`;
+  // titleSheet (群名变更 tab, 可选): 默认启用, 同 Sheet 不同分页
+  if (spreadsheetId) {
+    cleaned.titleSheet = {
+      spreadsheetId,
+      sheetName: `群名变更-${name}`,
+    };
+  }
 
   fs.writeFileSync(
     path.join(target, "config.json"),
