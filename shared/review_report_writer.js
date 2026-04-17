@@ -427,11 +427,12 @@ async function handleMessage(message) {
 
   const dialogs = await resolveTargetDialogs();
   if (!dialogs.length) {
-    console.error("找不到任何监听群，请确认 @sumu618 已加入目标群且群名无误");
-    process.exit(1);
+    console.warn(`⚠ 找不到任何监听群 (config 配了: ${inputChatNames.join(", ")})`);
+    console.warn(`  请确认 TG 号已加入这些群, 或到 Web 编辑页改 config 选实际加入的群`);
+    console.warn(`  进程保持运行, 每 60 秒重试一次...`);
+  } else {
+    console.log(`审查报告汇总写表服务已启动, 监听群数量: ${dialogs.length}, 目标工作表: ${sheetName}`);
   }
-
-  console.log(`审查报告汇总写表服务已启动，固定监听群数量：${dialogs.length}，目标工作表：${sheetName}`);
 
   client.addEventHandler(async (event) => {
     try {
