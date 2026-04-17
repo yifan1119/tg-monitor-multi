@@ -34,6 +34,9 @@ services:
       - ./shared:/app/shared
       - ./scripts:/app/scripts
       - ./VERSION:/app/VERSION:ro
+      # .git mount: Web「检查更新」在容器内跑 git fetch, 不 mount .git 就永远
+      # 比对 image 里的旧 HEAD, 显示"落后 N 个 commit"怎么拉都不降
+      - ./.git:/app/.git
       # 用戶資料 (絕不能進 image, volume mount 保留升級)
       - ./depts:/app/depts
       - ./global:/app/global
