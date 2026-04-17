@@ -1027,6 +1027,61 @@ app.post("/api/sheet-template/init", async (req, res) => {
   }
 });
 
+// 模板管理: 读 / 改 表头
+app.get("/settings/sheet-templates", (req, res) => {
+  const types = ["keyword", "title", "review"];
+  const templates = types.map(t => {
+    const base = sheetTemplate.TEMPLATES[t];
+    const effective = sheetTemplate.getEffectiveTemplate(t, { dept: "<dept>" });
+    const custom = sheetTemplate.loadCustom()[t] || {};
+    return {
+      type: t,
+      label: { keyword: "关键字命中记录", title: "群名变更履历", review: "审查报告汇总表" }[t],
+      defaultTitle: typeof base.title === "function" ? base.title({ dept: "<dept>" }) : base.title,
+      currentTitle: typeof effective.title === "function" ? effective.title({ dept: "<dept>" }) : effective.title,
+      headers: effective.headers,
+      defaultHeaders: base.headers,
+      customTitle: custom.title || "",
+      customHeaders: custom.headers || null,
+    };
+  });
+  res.render("pages/sheet-templates", {
+    title: "Sheet 模板管理",
+    active: "settings",
+    templates,
+    flash: req.query.flash || null,
+    error: req.query.error || null,
+  });
+});
+
+app.post("/settings/sheet-templates/:type", (req, res) => {
+  const { type } = req.params;
+  if (!sheetTemplate.TEMPLATES[type]) return res.redirect(`/settings/sheet-templates?error=${encodeURIComponent("未知类型")}`);
+  try {
+    const customTitle = (req.body.custom_title || "").trim();
+    const customHeaders = String(req.body.custom_headers || "")
+      .split(/\n/).map(s => s.trim()).filter(s => s !== "_EMPTY_LINE_KEEP_");
+    // 若空就 reset 回默认 (存 null)
+    const patch = {};
+    patch.title = customTitle || null;
+    patch.headers = customHeaders.length > 0 ? customHeaders : null;
+    sheetTemplate.saveCustom(type, patch);
+    res.redirect(`/settings/sheet-templates?flash=${encodeURIComponent(`已保存 ${type} 模板. 下次应用模板时生效`)}`);
+  } catch (e) {
+    res.redirect(`/settings/sheet-templates?error=${encodeURIComponent(e.message)}`);
+  }
+});
+
+app.post("/settings/sheet-templates/:type/reset", (req, res) => {
+  const { type } = req.params;
+  try {
+    sheetTemplate.saveCustom(type, { title: null, headers: null, columnWidths: null });
+    res.redirect(`/settings/sheet-templates?flash=${encodeURIComponent(`${type} 模板已重置为默认`)}`);
+  } catch (e) {
+    res.redirect(`/settings/sheet-templates?error=${encodeURIComponent(e.message)}`);
+  }
+});
+
 // ─── 升级 / 回滚 ─────────────────────────────
 const updateManager = require("./lib/update-manager");
 

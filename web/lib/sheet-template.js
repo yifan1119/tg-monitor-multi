@@ -14,6 +14,40 @@ const fs = require("fs");
 const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..", "..");
+const CUSTOM_FILE = path.join(ROOT, "data", "sheet-templates.json");
+
+// 读用户自定义 (若有) 覆盖默认模板
+function loadCustom() {
+  try {
+    if (fs.existsSync(CUSTOM_FILE)) return JSON.parse(fs.readFileSync(CUSTOM_FILE, "utf8"));
+  } catch {}
+  return {};
+}
+
+function saveCustom(type, patch) {
+  const all = loadCustom();
+  all[type] = { ...(all[type] || {}), ...patch };
+  if (!fs.existsSync(path.dirname(CUSTOM_FILE))) fs.mkdirSync(path.dirname(CUSTOM_FILE), { recursive: true });
+  fs.writeFileSync(CUSTOM_FILE, JSON.stringify(all, null, 2));
+  return all[type];
+}
+
+// 合并默认 + 用户自定义, 返回最终模板
+function getEffectiveTemplate(type, ctx = {}) {
+  const base = TEMPLATES[type];
+  if (!base) throw new Error(`未知模板类型: ${type}`);
+  const custom = loadCustom()[type] || {};
+  // title 支持字串或 function
+  const titleFn = typeof custom.title === "string"
+    ? () => custom.title.replace(/\{dept\}/g, ctx.dept || "部门")
+    : base.title;
+  return {
+    ...base,
+    title: titleFn,
+    headers: custom.headers || base.headers,
+    columnWidths: custom.columnWidths || base.columnWidths,
+  };
+}
 const GSA_PATH_CANDIDATES = [
   path.join(ROOT, "shared", "google-service-account.json"),
   path.join(ROOT, "secrets", "google-service-account.json"),
@@ -85,7 +119,7 @@ const TEMPLATES = {
 async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMissing = false }) {
   if (!spreadsheetId || !sheetName) throw new Error("缺少 spreadsheetId 或 sheetName");
   if (!TEMPLATES[type]) throw new Error(`未知模板类型: ${type}`);
-  const tmpl = TEMPLATES[type];
+  const tmpl = getEffectiveTemplate(type, { dept });
 
   const sheets = await getSheets();
 
@@ -274,4 +308,4 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
   };
 }
 
-module.exports = { ensureTemplate, TEMPLATES };
+module.exports = { ensureTemplate, TEMPLATES, loadCustom, saveCustom, getEffectiveTemplate };

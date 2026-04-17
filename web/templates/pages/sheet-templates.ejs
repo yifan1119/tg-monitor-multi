@@ -1,0 +1,62 @@
+<div class="page-header">
+  <div>
+    <div class="page-title">Sheet 模板管理</div>
+    <div class="page-subtitle">自定义标题 + 表头. 下次"初始化模板"或保存 config 会用这份</div>
+  </div>
+  <div><a href="/settings" class="btn ghost">返回设置</a></div>
+</div>
+
+<% if (locals.flash) { %>
+  <div class="panel" style="border-left: 3px solid var(--green); background: rgba(0, 255, 149, 0.06);">
+    <div style="color: var(--green); font-weight: 700; font-size: 0.85rem;">✓ <%= flash %></div>
+  </div>
+<% } %>
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem;">⚠ <%= error %></div>
+  </div>
+<% } %>
+
+<div class="panel" style="background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent);">
+  <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.4rem;">ℹ 怎么用</div>
+  <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.8;">
+    改了表头后, <strong>现有 Sheet 不会自动改</strong> — 要到部门或全局编辑页点「⚡ 初始化模板」, 或保存 config, 才会把新表头推到 Sheet.<br>
+    <strong style="color: var(--yellow);">⚠ 改表头 = 改 worker 写入的列顺序</strong>. 列数必须跟 worker 代码对齐 (keyword 必须 6 列 · title 5 列 · review 13 列), 不然写表会错位.<br>
+    标题里用 <code>{dept}</code> 会被自动替换成部门代号 (仅 keyword / title 模板).
+  </div>
+</div>
+
+<% templates.forEach(t => { %>
+  <div class="panel">
+    <div class="panel-title">
+      <%= t.label %> · <code>type=<%= t.type %></code>
+      <% if (t.customHeaders || t.customTitle) { %>
+        <span style="color: var(--accent); font-size: 0.7rem; margin-left: 0.5rem;">(已自定义)</span>
+      <% } else { %>
+        <span style="color: var(--text-dim); font-size: 0.7rem; margin-left: 0.5rem;">(默认)</span>
+      <% } %>
+    </div>
+    <form action="/settings/sheet-templates/<%= t.type %>" method="POST">
+      <div class="form-group">
+        <label>标题 (第 1 行, merged)</label>
+        <input type="text" name="custom_title" value="<%= t.customTitle || '' %>" placeholder="默认: <%= t.defaultTitle %>">
+        <div class="hint">留空 = 用默认. <%= t.type === 'review' ? '' : '可用 <code>{dept}</code> 占位符' %></div>
+      </div>
+      <div class="form-group">
+        <label>表头 (每行一个, 顺序 = 列顺序)</label>
+        <textarea name="custom_headers" rows="<%= t.headers.length + 1 %>" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;"><% if (t.customHeaders) { %><%= t.customHeaders.join("\n") %><% } else { %><%= t.headers.join("\n") %><% } %></textarea>
+        <div class="hint">
+          默认: <code><%= t.defaultHeaders.join(" · ") %></code><br>
+          <strong style="color: var(--yellow);">列数必须保持 <%= t.defaultHeaders.length %></strong> — worker 按固定位置写值, 少了或多了会错位.
+        </div>
+      </div>
+      <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <form action="/settings/sheet-templates/<%= t.type %>/reset" method="POST" style="display:inline;"
+          onsubmit="return confirm('重置 <%= t.type %> 为默认?');">
+          <button type="submit" class="btn ghost" style="padding:0.35rem 0.8rem;font-size:0.75rem;color:var(--text-dim);">重置默认</button>
+        </form>
+        <button type="submit" class="btn" style="padding:0.35rem 0.9rem;font-size:0.8rem;">保存</button>
+      </div>
+    </form>
+  </div>
+<% }); %>
