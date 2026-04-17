@@ -752,6 +752,30 @@ app.post("/settings/global/new", async (req, res) => {
   }
 });
 
+// ─── 删除全局进程 (搬到 .trash) ─────────────────
+app.post("/settings/global/:kind/delete", async (req, res) => {
+  const { kind } = req.params;
+  if (!GLOBAL_KINDS.includes(kind)) {
+    return res.redirect(`/settings?error=${encodeURIComponent("unknown kind")}`);
+  }
+  try {
+    // 1. 先彻底 pm2 delete (不是 stop, delete = 从 pm2 列表摘掉, 不再重启)
+    await new Promise(r => execFile("pm2", ["delete", `tg-${kind}`], { cwd: ROOT }, () => r()));
+    // 2. 目录搬到 .trash
+    const src = path.join(ROOT, "global", kind);
+    if (fs.existsSync(src)) {
+      const trash = path.join(ROOT, "global", `.trash-${Date.now()}-${kind}`);
+      fs.renameSync(src, trash);
+      console.log(`[delete global] ${kind} → ${trash}`);
+    }
+    // 3. 重生 ecosystem (ecosystem.config.js 就不会再含它)
+    await regenerateEcosystem();
+    res.redirect(`/settings?flash=${encodeURIComponent(`已删除 tg-${kind} (目录搬到 global/.trash-*-${kind})`)}`);
+  } catch (e) {
+    res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
+  }
+});
+
 // ─── 全局进程 PM2 控制 ───────────────────────────
 app.post("/settings/global/:kind/:action", async (req, res) => {
   const { kind, action } = req.params;

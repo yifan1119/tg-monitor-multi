@@ -76,6 +76,10 @@
                 <form action="/settings/global/<%= gk.kind %>/stop" method="POST" style="display:inline;">
                   <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="停止">⏸</button>
                 </form>
+                <form action="/settings/global/<%= gk.kind %>/delete" method="POST" style="display:inline;"
+                  onsubmit="return confirm('⚠ 确认删除全局进程 tg-<%= gk.kind %>?\n- PM2 会彻底 delete (不再重启)\n- 目录搬到 global/.trash-*-<%= gk.kind %>\n- Session / config 不丢失, 要恢复手动改回来');">
+                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);" title="删除">🗑</button>
+                </form>
               </td>
             <% } %>
           </tr>
