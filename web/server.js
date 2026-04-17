@@ -187,15 +187,25 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
     // 2. 建第一个部门目录（如果有填）
     let createdDept = null;
     if (dept_name) {
+      const trimmedName = dept_name.trim();
+      const trimmedSheetId = (spreadsheet_id || "").trim();
+      const trimmedTab = (sheet_tab || "").trim() || `关键词命中-${trimmedName}`;
       createdDept = await createDept({
-        name: dept_name.trim(),
+        name: trimmedName,
         display: (dept_display || dept_name).trim(),
         outputChat: (output_chat || "").trim(),
-        spreadsheetId: (spreadsheet_id || "").trim(),
-        sheetTab: (sheet_tab || "").trim(),
+        spreadsheetId: trimmedSheetId,
+        sheetTab: trimmedTab,
         tgApiId: sys.tgApiId,
         tgApiHash: sys.tgApiHash,
       });
+      // 自动建 Sheet 2 个分页 + 套模板 (跟 /depts/new 保持一致)
+      if (trimmedSheetId) {
+        try {
+          await sheetTemplate.ensureTemplate({ spreadsheetId: trimmedSheetId, sheetName: trimmedTab, type: "keyword", dept: trimmedName, onlyIfMissing: true });
+          await sheetTemplate.ensureTemplate({ spreadsheetId: trimmedSheetId, sheetName: `群名变更-${trimmedName}`, type: "title", dept: trimmedName, onlyIfMissing: true });
+        } catch (e) { console.warn("[setup auto-template]", e.message); }
+      }
     }
 
     // 3. 重生 ecosystem.config.js

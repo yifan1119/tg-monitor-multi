@@ -63,8 +63,8 @@ async function createDept({
   const v = validateDeptName(name);
   if (!v.ok) throw new Error(v.reason);
 
-  // 必填检查
-  const required = { display, outputChat, spreadsheetId, sheetTab };
+  // 必填检查 (sheetTab 空值会走下面的默认 "关键词命中-<dept>")
+  const required = { display, outputChat, spreadsheetId };
   for (const [k, val] of Object.entries(required)) {
     if (!val || !String(val).trim()) {
       throw new Error(`字段 ${k} 不能为空`);

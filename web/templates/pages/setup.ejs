@@ -99,8 +99,9 @@
       <div class="hint">Sheet 要把 SA email 加为“编辑者”</div>
     </div>
     <div class="form-group">
-      <label>工作表分页名称</label>
-      <input type="text" name="sheet_tab" placeholder="例: 关键词提醒yd" value="<%= fd.sheet_tab || '' %>" required>
+      <label>工作表分页名称 <span style="color:var(--text-dim);font-weight:400;font-size:0.8rem;">(留空 = 自动生成 "关键词命中-&lt;部门代号&gt;")</span></label>
+      <input type="text" name="sheet_tab" placeholder="留空自动生成, 或自定如: 关键词提醒yd" value="<%= fd.sheet_tab || '' %>">
+      <div class="hint">建立时会自动在你的 Sheet 里建 2 个分页 (关键字命中 + 群名变更), 自动套表头 + 样式.</div>
     </div>
   </div>
 
