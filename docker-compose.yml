@@ -50,6 +50,9 @@ services:
       DATA_PROVIDER: real
       WEB_PORT: 5003
       TG_MONITOR_MULTI_DOCKER: "1"
+      # 宿主機安裝目錄 (從 .env 讀, install.sh 自動寫入).
+      # Web「檢查更新」會顯示「cd <這個路徑> && bash scripts/update.sh」給用戶.
+      HOST_INSTALL_DIR: "${HOST_INSTALL_DIR:-/opt/tg-monitor-multi}"
 
     # 若容器內 setup 要加 cron 健康檢查, 用宿主機的 pm2 直接跑, 這裡不需要
     # (單容器自給自足, 不依賴宿主機 pm2)

@@ -160,12 +160,13 @@ else
   ok "port $WEB_PORT 空闲"
 fi
 
-# .env for docker-compose (每次覆写, 保证和上面检测到的 port 一致)
+# .env for docker-compose (每次覆写, 保证和上面检测到的 port + 路径一致)
 cat > .env <<EOF
 # Docker compose 部署层配置 (install.sh 自动写, 手改会被下次 install 覆盖)
 WEB_PORT=$WEB_PORT
+HOST_INSTALL_DIR=$INSTALL_DIR
 EOF
-ok "写入 .env (WEB_PORT=$WEB_PORT)"
+ok "写入 .env (WEB_PORT=$WEB_PORT, HOST_INSTALL_DIR=$INSTALL_DIR)"
 
 # ─── 4. Docker build + up ──────────────────────────
 log "docker compose up (build + start)..."

@@ -94,7 +94,9 @@ function checkUpdates() {
       commits,
       changedFiles,
       needsImage,
-      rootPath: ROOT, // 给 UI 显示"cd <path>"
+      // 宿主机路径: 容器内 ROOT=/app, 对用户没用; 从 env 读 (docker-compose 传进来),
+      // fallback 到 install.sh 默认的 /opt/tg-monitor-multi
+      rootPath: process.env.HOST_INSTALL_DIR || (process.env.TG_MONITOR_MULTI_DOCKER ? "/opt/tg-monitor-multi" : ROOT),
     };
   } catch (e) {
     return { ok: false, error: e.stderr ? e.stderr.toString() : e.message };
