@@ -25,7 +25,8 @@ RUN npm ci
 FROM node:22-alpine
 
 # Runtime 工具 (無編譯依賴)
-RUN apk add --no-cache bash tini curl \
+# git: Web 「检查更新」/ softUpdate 需要 git fetch + git pull
+RUN apk add --no-cache bash tini curl git \
  && npm install -g pm2@6 --silent
 
 WORKDIR /app
