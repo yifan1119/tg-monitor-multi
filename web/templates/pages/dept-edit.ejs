@@ -230,32 +230,9 @@
         <input type="text" id="fld-titleSheetName" name="titleSheetName" value="<%= fd.titleSheetName != null ? fd.titleSheetName : ((cfg.titleSheet && cfg.titleSheet.sheetName) || '') %>" placeholder="例: 群名变更  (留空 = 群名变更只推中转群, 不写表)" autocomplete="off">
         <div class="hint">
           群改名时 worker 会在这个分页写一行 (原群名 / 新群名 / 变更时间 / 操作人).
-          Spreadsheet ID 用上面同一张 <code>fld-spreadsheetId</code>.
+          Spreadsheet ID 用上面同一张. 保存后自动建分页 + 写表头.
         </div>
       </div>
-      <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
-        <button type="button" class="btn ghost" style="padding:0.3rem 0.7rem;font-size:0.72rem;color:var(--accent);border-color:var(--accent);" onclick="initTitleSheet()">⚡ 初始化群名变更模板</button>
-        <span id="title-sheet-result" style="font-size:0.75rem;color:var(--text-dim);"></span>
-      </div>
-      <script>
-        async function initTitleSheet() {
-          const out = document.getElementById("title-sheet-result");
-          const spreadsheetId = document.getElementById("fld-spreadsheetId").value.trim();
-          const sheetName = document.getElementById("fld-titleSheetName").value.trim();
-          if (!spreadsheetId) { out.innerHTML = '<span style="color:var(--red);">先填上面 Spreadsheet ID</span>'; return; }
-          if (!sheetName) { out.innerHTML = '<span style="color:var(--red);">先填群名变更分页名称</span>'; return; }
-          if (!confirm('⚡ 初始化群名变更模板 "' + sheetName + '"?')) return;
-          out.innerHTML = '初始化中...';
-          try {
-            const r = await fetch("/api/sheet-template/init", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ spreadsheetId, sheetName, type: "title", dept: "<%= dept.name %>" }),
-            }).then(r => r.json());
-            if (r.ok) out.innerHTML = '<span style="color:var(--green);">✓ ' + (r.created ? '已建分页' : '已重设模板') + '</span>';
-            else out.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>';
-          } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
-        }
-      </script>
     </div>
     <script>
       async function initSheetTemplate() {
