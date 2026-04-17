@@ -67,7 +67,12 @@
 
     <div class="form-group">
       <label><%= locals.saExists ? "替换" : "上传" %> google-service-account.json <%= locals.saExists ? "（选填）" : "" %></label>
-      <input type="file" name="google_sa" accept="application/json,.json">
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <input type="file" id="google-sa-input" name="google_sa" accept="application/json,.json" style="display:none;"
+          onchange="document.getElementById('google-sa-filename').textContent = this.files[0] ? this.files[0].name : '未选择文件';">
+        <button type="button" class="btn ghost" onclick="document.getElementById('google-sa-input').click();">📁 选择文件</button>
+        <span id="google-sa-filename" style="color:var(--text-dim);font-size:0.85rem;">未选择文件</span>
+      </div>
       <div class="hint">
         到 <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" style="color:var(--accent);">GCP Console → IAM → Service Accounts</a> → 选择或建立账号 → Keys → Add Key → Create new key (JSON) → 下载后上传。<br>
         所有部门共用这一把钥匙. 对应 Google Sheet 要把这个账号的 email 加为“编辑者”.
