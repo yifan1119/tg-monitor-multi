@@ -475,6 +475,10 @@ app.post("/depts/:name/delete", async (req, res) => {
 const tgLogin = require("./lib/tg-login");
 
 function renderLoginPage(res, target, extraCtx, opts = {}, status = 200) {
+  // step=phone 时列出其他已登入的 session 可供复制
+  const availableSessions = (opts.step === "phone" || !opts.step)
+    ? tgLogin.listAvailableSessions(target)
+    : [];
   res.status(status).render("pages/tg-login", {
     title: `TG 登入 · ${target.name}`,
     active: target.type === "dept" ? "depts" : "settings",
@@ -485,6 +489,8 @@ function renderLoginPage(res, target, extraCtx, opts = {}, status = 200) {
     phone: opts.phone || null,
     error: opts.error || null,
     bytes: opts.bytes || null,
+    copied: opts.copied || null,
+    availableSessions,
     ...extraCtx,
   });
 }
@@ -534,6 +540,15 @@ function handleLoginFlow(target, extraCtx) {
       tgLogin.abort(target);
       res.redirect(req.body._returnTo || "/");
     },
+    copy: (req, res) => {
+      try {
+        const r = tgLogin.copySessionFrom(target, req.body.source_key);
+        renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes, copied: r.source });
+      } catch (e) {
+        console.error("[tg-login/copy]", target.key, e.message);
+        renderLoginPage(res, target, extraCtx, { step: "phone", error: `复制失败: ${e.message}` }, 400);
+      }
+    },
   };
 }
 
@@ -566,6 +581,12 @@ app.post("/depts/:name/login/abort",    (req, res) => {
   const target = tgLogin.makeTarget("dept", req.params.name);
   req.body._returnTo = `/depts/${req.params.name}/login`;
   handleLoginFlow(target, {}).abort(req, res);
+});
+app.post("/depts/:name/login/copy",     (req, res) => {
+  const dept = loadDeptForEdit(req.params.name);
+  if (!dept) return res.status(404).send("部门不存在");
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  handleLoginFlow(target, { outputChat: dept.config.outputChatName || "", subLabel: `部门 · ${req.params.name}` }).copy(req, res);
 });
 app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
 app.get("/logs",                 placeholder("日志", "即时 pm2 logs 串流", "v0.3 实作", "留到 v0.3。届时可用 WebSocket 串 pm2 logs，按部门筛选 + 搜寻关键字。"));
@@ -637,6 +658,7 @@ app.get("/settings", async (req, res) => {
 
   const healthcheck = readHealthcheckStatus();
   const backups = readBackupsSummary();
+  const backupList = updateManager.listBackups().slice(0, 10); // 最多显示最近 10 个
   const gsaExists = fs.existsSync(GOOGLE_SA_PATH);
   let gsaEmail = "";
   if (gsaExists) {
@@ -661,6 +683,7 @@ app.get("/settings", async (req, res) => {
     procs,
     healthcheck,
     backups,
+    backupList,
     systemInfo,
     flash: req.query.flash || null,
     error: req.query.error || null,
@@ -674,7 +697,7 @@ app.post("/settings/global/new", async (req, res) => {
     const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
     const result = await createGlobal(kind, { tgApiId: sys.tgApiId, tgApiHash: sys.tgApiHash });
     await regenerateEcosystem();
-    res.redirect(`/settings?flash=${encodeURIComponent(`已建立 global/${result.kind}/, 下一步: SSH 到 VPS 跑 node scripts/login-global.js ${result.kind}`)}`);
+    res.redirect(`/settings?flash=${encodeURIComponent(`已建立 global/${result.kind}/. 下一步: 点「编辑」填 config, 再点「🔑」走 TG 登入`)}`);
   } catch (e) {
     console.error("[settings/global/new]", e.message);
     res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
@@ -828,6 +851,48 @@ app.post("/settings/global/:kind/login/abort",    (req, res) => {
   req.body._returnTo = `/settings/global/${kind}/login`;
   handleLoginFlow(target, {}).abort(req, res);
 });
+app.post("/settings/global/:kind/login/copy",     (req, res) => {
+  const kind = req.params.kind;
+  if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
+  const target = tgLogin.makeTarget("global", kind);
+  handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).copy(req, res);
+});
+
+// ─── 升级 / 回滚 ─────────────────────────────
+const updateManager = require("./lib/update-manager");
+
+app.get("/api/updates/check", (_req, res) => {
+  res.json(updateManager.checkUpdates());
+});
+
+function renderUpdateResult(res, title, result, error) {
+  res.render("pages/update-result", {
+    title,
+    active: "settings",
+    resultTitle: title,
+    log: result ? result.log : "",
+    error,
+    backupTs: result ? result.backupTs : null,
+  });
+}
+
+app.post("/settings/update", async (_req, res) => {
+  try {
+    const r = updateManager.softUpdate();
+    renderUpdateResult(res, "升级结果", r, null);
+  } catch (e) {
+    renderUpdateResult(res, "升级失败", { log: e.message }, e.message);
+  }
+});
+
+app.post("/settings/rollback/:ts", async (req, res) => {
+  try {
+    const r = updateManager.rollback(req.params.ts);
+    renderUpdateResult(res, `回滚结果 · ${req.params.ts}`, r, null);
+  } catch (e) {
+    renderUpdateResult(res, `回滚失败 · ${req.params.ts}`, { log: e.message }, e.message);
+  }
+});
 
 // ─── Healthcheck 启用 / 停用 ───────────────────
 function runHealthcheckInstall(arg) {
@@ -879,24 +944,39 @@ app.listen(PORT, () => {
   }
   console.log("╚════════════════════════════════════════════════════════");
 
-  // 启动时: 若 ecosystem.config.js 存在且含进程定义, 自动 pm2 start
-  // (让容器重启 / 服务重启后, 既有部门进程自动拉起)
+  // 启动时: 先重生 ecosystem (对齐 depts/ + global/ 的最新状态), 再 pm2 start
+  // (让容器重启 / 代码升级后, 既有部门进程自动拉起, 且配置跟 depts/ 目录真实状态一致)
   const ecoPath = path.join(ROOT, "ecosystem.config.js");
-  if (fs.existsSync(ecoPath)) {
+  (async () => {
     try {
-      const content = fs.readFileSync(ecoPath, "utf8");
-      if (content.includes('"name"')) {
-        console.log("[boot] 侦测到 ecosystem.config.js 含进程定义, 尝试 pm2 start...");
-        execFile("pm2", ["start", ecoPath], { cwd: ROOT }, (err, stdout, stderr) => {
-          if (err) {
-            console.warn("[boot] pm2 start ecosystem 失败:", (stderr || err.message).split("\n")[0]);
-          } else {
-            console.log("[boot] ecosystem 载入完成");
-          }
-        });
+      const hasContent = fs.existsSync(path.join(ROOT, "depts")) &&
+        fs.readdirSync(path.join(ROOT, "depts")).some(n => !n.startsWith("_") && !n.startsWith("."));
+      const hasGlobal = fs.existsSync(path.join(ROOT, "global")) &&
+        fs.readdirSync(path.join(ROOT, "global")).some(n => !n.startsWith("_") && !n.startsWith("."));
+      if (hasContent || hasGlobal) {
+        console.log("[boot] 重生 ecosystem.config.js 以对齐 depts/ + global/ 真实状态...");
+        await regenerateEcosystem();
       }
     } catch (e) {
-      console.warn("[boot] 读 ecosystem.config.js 失败:", e.message);
+      console.warn("[boot] 启动期 ecosystem 重生失败:", e.message);
     }
-  }
+    // 然后 pm2 start (若有定义)
+    if (fs.existsSync(ecoPath)) {
+      try {
+        const content = fs.readFileSync(ecoPath, "utf8");
+        if (content.includes('"name"')) {
+          console.log("[boot] 侦测到 ecosystem.config.js 含进程定义, 尝试 pm2 start...");
+          execFile("pm2", ["start", ecoPath], { cwd: ROOT }, (err, stdout, stderr) => {
+            if (err) {
+              console.warn("[boot] pm2 start ecosystem 失败:", (stderr || err.message).split("\n")[0]);
+            } else {
+              console.log("[boot] ecosystem 载入完成");
+            }
+          });
+        }
+      } catch (e) {
+        console.warn("[boot] 读 ecosystem.config.js 失败:", e.message);
+      }
+    }
+  })();
 });

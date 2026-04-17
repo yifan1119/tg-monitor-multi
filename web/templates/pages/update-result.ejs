@@ -1,0 +1,38 @@
+<div class="page-header">
+  <div>
+    <div class="page-title"><%= resultTitle %></div>
+    <div class="page-subtitle">
+      <% if (locals.error) { %>
+        <span style="color: var(--red);">⚠ 操作失败</span>
+      <% } else { %>
+        <span style="color: var(--green);">✓ 操作完成</span>
+      <% } %>
+    </div>
+  </div>
+  <div><a href="/settings" class="btn ghost">返回设置</a></div>
+</div>
+
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; margin-bottom: 0.5rem;">错误</div>
+    <pre style="white-space: pre-wrap; font-size: 0.8rem; color: var(--text-0); margin: 0;"><%= error %></pre>
+  </div>
+<% } %>
+
+<% if (locals.backupTs) { %>
+  <div class="panel" style="border-left: 3px solid var(--accent); background: rgba(0, 230, 255, 0.04);">
+    <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.3rem;">📦 本次升级前已自动备份</div>
+    <div style="font-size: 0.85rem; color: var(--text-1);">备份位置: <code>.backups/<%= backupTs %>/</code></div>
+    <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;">若出问题可到设置页点「回滚到此备份」</div>
+  </div>
+<% } %>
+
+<div class="panel">
+  <div class="panel-title">操作日志</div>
+  <pre style="background: rgba(7, 10, 21, 0.7); padding: 1rem; border-radius: 6px; font-size: 0.78rem; color: var(--text-1); overflow-x: auto; line-height: 1.6; margin: 0; max-height: 600px;"><%= log %></pre>
+</div>
+
+<div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem;">
+  <a href="/settings" class="btn">返回设置</a>
+  <a href="/dashboard" class="btn ghost">Dashboard</a>
+</div>

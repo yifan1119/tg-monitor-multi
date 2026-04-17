@@ -4,6 +4,35 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.3.2-docker] — 2026-04-17
+
+**零 CLI 系列 #1** — session 复用 + Web 一键升级回滚 + ecosystem 自启对齐.
+
+### 新增
+- **Session 复制** — TG 登入 wizard (dept + global) step=phone 顶新增「快速方式」block
+  - 下拉选已登入的 session → 一键复制 session.txt 过去 (不走验证码)
+  - 对齐苏总原设计: baseline 的 sheet-writer + system-events 本来就共用同一份 session.txt
+  - `web/lib/tg-login.js` 新增 `listAvailableSessions()` / `copySessionFrom()`
+  - `server.js` 新增 `POST /depts/:name/login/copy` + `POST /settings/global/:kind/login/copy`
+- **Web 升级 / 回滚** (`/settings`):
+  - 「🔍 检查更新」按钮: git fetch + 比对 → 显示落后 commit 数 + commits 列表
+  - 软升级 (代码变更): 自动备份 → git pull → regen ecosystem → pm2 reload tg-* (Web 自己不重启)
+  - 硬升级 (Dockerfile/package.json 变动): 提示需 SSH 跑 `bash scripts/update.sh`
+  - 备份表格: 每个备份显示时间/大小/包含目录 + 一键回滚按钮
+  - 回滚前自动预备份到 `.backups/<ts>-pre-rollback/` (防回滚也出错)
+  - `web/lib/update-manager.js` 新增
+  - `web/templates/pages/update-result.ejs` 新增 (日志输出页)
+- **ecosystem 自启对齐** — Web 启动时 (容器 boot / 升级后) 先跑 `generate-ecosystem.js`, 再 `pm2 start`
+  - 修复 v0.3.1 Docker rebuild 后 ecosystem.config.js 不同步的问题
+
+### 改动
+- `/settings` 去掉 CLI 命令对照表, 改成真正可点的「检查更新 / 回滚」按钮
+- `/settings/global/new` flash 从「SSH 跑 login-global.js」改成「编辑页 + 🔑 登入」
+- `/dashboard` 空状态快速上手从「跑 login-dept.js」改成「点编辑页 🔑」
+- `/depts/new` 成功页从「手动登入 + pm2 start」改成「编辑页 🔑 (可复制 session) + ▶ 启动」
+
+---
+
 ## [0.3.1-docker] — 2026-04-17
 
 UI 细节改进 + 全局进程 Web 化.

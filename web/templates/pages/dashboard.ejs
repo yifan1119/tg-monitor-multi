@@ -36,10 +36,10 @@
     <div style="margin-top: 3rem; padding: 1.5rem; background: rgba(7, 10, 21, 0.5); border: 1px dashed var(--panel-border); border-radius: 8px; text-align: left; max-width: 600px; margin-left: auto; margin-right: auto;">
       <div style="font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--accent); letter-spacing: 0.15em; margin-bottom: 0.75rem;">▸ 快速上手</div>
       <ol style="font-size: 0.85rem; color: var(--text-1); line-height: 2; padding-left: 1.25rem; margin: 0;">
-        <li>走 <strong style="color: var(--accent);">设置精灵</strong>：填 TG API / Google SA / 第一个部门</li>
-        <li>在 VPS 跑 <code style="background: rgba(0,230,255,0.1); padding: 0.1rem 0.4rem; border-radius: 3px; color: var(--accent); font-size: 0.8rem;">node scripts/login-dept.js</code> 完成 TG 登入</li>
-        <li>启动 PM2 进程 — 3 个部门进程 + 2 个全局进程</li>
-        <li>回到 Dashboard 看实时状态</li>
+        <li>走 <strong style="color: var(--accent);">设置精灵</strong>: 填 TG API / Google SA / 第一个部门</li>
+        <li>到 <strong>部门管理</strong>, 点「编辑」→「🔑 去登入 TG」完成登入 (可复用其他部门的 session)</li>
+        <li>在编辑页点「▶ 启动」起 PM2 进程 (listener + system-events + sheet-writer)</li>
+        <li>回 Dashboard 看实时状态 · 到「系统设置」开健康检查 cron</li>
       </ol>
     </div>
   </div>

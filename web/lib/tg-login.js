@@ -63,6 +63,55 @@ function targetExists(t) {
   return fs.existsSync(t.baseDir) && fs.statSync(t.baseDir).isDirectory();
 }
 
+// 扫所有已有 session.txt 的 target, 排除自己 (用来给 "复制 session" 下拉)
+function listAvailableSessions(excludeTarget = null) {
+  const out = [];
+  const exKey = excludeTarget ? excludeTarget.key : null;
+  const scan = (type, baseDir) => {
+    if (!fs.existsSync(baseDir)) return;
+    for (const name of fs.readdirSync(baseDir)) {
+      if (name.startsWith("_") || name.startsWith(".")) continue;
+      const dir = path.join(baseDir, name);
+      if (!fs.statSync(dir).isDirectory()) continue;
+      const sess = path.join(dir, "session.txt");
+      if (!fs.existsSync(sess) || fs.statSync(sess).size === 0) continue;
+      const key = `${type}:${name}`;
+      if (key === exKey) continue;
+      out.push({
+        key,
+        type,
+        name,
+        label: type === "dept" ? `部门 · ${name}` : `全局 · ${name}`,
+        bytes: fs.statSync(sess).size,
+      });
+    }
+  };
+  scan("dept", path.join(ROOT, "depts"));
+  scan("global", path.join(ROOT, "global"));
+  return out;
+}
+
+// 从另一个已登入的 target 复制 session.txt 过来
+// 同号不同设备理论上会被 TG 踢, 但 baseline 实测是同一个 session string 可以在多进程共用
+// (苏总原本的 tg-sheet-writer/<dept>/session.txt == tg-system-services/<dept>/session.txt 就是这么干)
+function copySessionFrom(targetTo, sourceKey) {
+  if (!targetExists(targetTo)) throw new Error(`${targetTo.label} 不存在`);
+  const [srcType, srcName] = String(sourceKey || "").split(":");
+  if (!srcType || !srcName) throw new Error("来源格式错 (应为 type:name)");
+  const srcDir = srcType === "dept"
+    ? path.join(ROOT, "depts", srcName)
+    : path.join(ROOT, "global", srcName);
+  const srcPath = path.join(srcDir, "session.txt");
+  if (!fs.existsSync(srcPath) || fs.statSync(srcPath).size === 0) {
+    throw new Error(`来源 session 不存在或为空: ${srcType}/${srcName}`);
+  }
+  const dstPath = path.join(targetTo.baseDir, "session.txt");
+  const content = fs.readFileSync(srcPath);
+  fs.writeFileSync(dstPath, content);
+  console.log(`[tg-login] ✓ session 复制 ${srcType}:${srcName} → ${targetTo.key} (${content.length} bytes)`);
+  return { ok: true, bytes: content.length, source: `${srcType}/${srcName}` };
+}
+
 function readEnvAt(t) {
   const envPath = path.join(t.baseDir, ".env");
   if (!fs.existsSync(envPath)) throw new Error(`找不到 .env: ${path.relative(ROOT, envPath)}`);
@@ -198,4 +247,6 @@ module.exports = {
   submitPassword,
   getStatus,
   abort,
+  listAvailableSessions,
+  copySessionFrom,
 };

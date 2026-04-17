@@ -144,37 +144,120 @@
   </table>
 </div>
 
-<!-- ═══ 升级 / 回滚 ═══ -->
+<!-- ═══ 升级 (Web 一键) ═══ -->
 <div class="panel">
-  <div class="panel-title">升级 · 回滚 · 备份</div>
+  <div class="panel-title">升级 · 检查远端版本</div>
 
   <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    升级和回滚目前只能在 VPS 命令行执行 (需要 git + npm 权限, Web 不直接做).
+    点「检查更新」会跑 <code>git fetch</code> 看远端有没有新 commit.
+    <strong style="color: var(--accent);">软升级</strong>: 代码更新 + 重启 tg-* 进程 (不重建容器, Web 自己不重启).
+    <br>
+    <strong style="color: var(--yellow);">需要重建容器的升级</strong> (Dockerfile / package.json 改了) 会提示需要 SSH 到宿主机.
   </div>
 
-  <table>
-    <tbody>
-      <tr>
-        <td style="color: var(--text-dim); width: 120px;">升级到最新版</td>
-        <td><code style="color: var(--accent);">bash scripts/update.sh</code></td>
-      </tr>
-      <tr>
-        <td style="color: var(--text-dim);">列备份</td>
-        <td><code style="color: var(--accent);">bash scripts/list-backups.sh</code></td>
-      </tr>
-      <tr>
-        <td style="color: var(--text-dim);">回滚</td>
-        <td><code style="color: var(--accent);">bash scripts/rollback.sh .backups/&lt;ts&gt;/</code></td>
-      </tr>
-      <tr>
-        <td style="color: var(--text-dim);">清旧备份</td>
-        <td><code style="color: var(--accent);">bash scripts/clean-backups.sh</code></td>
-      </tr>
-    </tbody>
-  </table>
+  <div id="update-check-area">
+    <button type="button" class="btn" onclick="checkUpdates()">🔍 检查更新</button>
+    <span id="update-check-loading" style="display:none; margin-left: 1rem; color: var(--text-dim);">检查中...</span>
+  </div>
+
+  <div id="update-check-result" style="display: none; margin-top: 1rem;"></div>
+
+  <script>
+    async function checkUpdates() {
+      const btn = document.querySelector("#update-check-area button");
+      const loading = document.getElementById("update-check-loading");
+      const out = document.getElementById("update-check-result");
+      btn.disabled = true;
+      loading.style.display = "inline";
+      out.style.display = "none";
+      try {
+        const r = await fetch("/api/updates/check").then(r => r.json());
+        loading.style.display = "none";
+        btn.disabled = false;
+        out.style.display = "block";
+        if (!r.ok) {
+          out.innerHTML = `<div style="padding:0.8rem;background:rgba(255,59,92,0.08);border-left:3px solid var(--red);border-radius:0 6px 6px 0;color:var(--text-1);">检查失败: ${r.error}</div>`;
+          return;
+        }
+        if (r.behind === 0) {
+          out.innerHTML = `<div style="padding:0.8rem;background:rgba(0,255,149,0.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0;color:var(--text-1);">✓ 已是最新版本 (<code>${r.currentCommit}</code> · ${r.currentMsg})</div>`;
+          return;
+        }
+        const commits = r.commits.map(c => `<li style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">${c}</li>`).join("");
+        let html = `
+          <div style="padding:1rem;background:rgba(0,230,255,0.05);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;">
+            <div style="color:var(--accent);font-weight:700;margin-bottom:0.5rem;">⬆ 落后 ${r.behind} 个 commit</div>
+            <div style="font-size:0.8rem;color:var(--text-dim);">当前: <code>${r.currentCommit}</code> · ${r.currentMsg}</div>
+            <ul style="margin:0.5rem 0 0 1.25rem;padding:0;color:var(--text-1);">${commits}</ul>
+          </div>`;
+        if (r.needsImage) {
+          const affected = r.changedFiles.filter(f => /^(Dockerfile|docker-compose\.yml|.*package(-lock)?\.json)$/.test(f)).join(", ");
+          html += `
+            <div style="margin-top:1rem;padding:1rem;background:rgba(255,201,64,0.08);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;">
+              <div style="color:var(--yellow);font-weight:700;margin-bottom:0.5rem;">⚠ 需要重建 Docker 镜像</div>
+              <div style="font-size:0.85rem;color:var(--text-1);line-height:1.8;">
+                此次升级改了 <code>${affected}</code>, Web 搞不定. 请 SSH 到宿主机跑:<br>
+                <code style="color:var(--accent);font-size:0.9rem;">cd tg-monitor-multi && bash scripts/update.sh</code>
+              </div>
+            </div>`;
+        } else {
+          html += `
+            <form action="/settings/update" method="POST" style="margin-top:1rem;" onsubmit="return confirm('确认执行软升级？操作前会自动备份 depts/global/data/secrets 到 .backups/')">
+              <button type="submit" class="btn" style="background:linear-gradient(90deg,var(--green),var(--accent));">⬆ 执行软升级</button>
+              <span style="margin-left:0.75rem;color:var(--text-dim);font-size:0.8rem;">git pull + regen ecosystem + pm2 reload tg-* (web 不重启)</span>
+            </form>`;
+        }
+        out.innerHTML = html;
+      } catch (e) {
+        loading.style.display = "none";
+        btn.disabled = false;
+        out.style.display = "block";
+        out.innerHTML = `<div style="color:var(--red);">检查请求失败: ${e.message}</div>`;
+      }
+    }
+  </script>
+</div>
+
+<!-- ═══ 备份 / 回滚 ═══ -->
+<div class="panel">
+  <div class="panel-title">备份 · 回滚</div>
+
+  <% if (!backupList || backupList.length === 0) { %>
+    <div style="color: var(--text-dim); font-size: 0.85rem;">还没有任何备份. 第一次升级会自动建备份.</div>
+  <% } else { %>
+    <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
+      每次软升级 / 回滚前会把 <code>depts/ global/ data/ secrets/</code> 备份到 <code>.backups/&lt;ts&gt;/</code>.
+      回滚会把对应目录<strong>整个换回</strong> (当前状态会先另外预备份到带 <code>-pre-rollback</code> 尾缀的目录).
+    </div>
+    <div style="overflow-x: auto;">
+      <table>
+        <thead>
+          <tr><th>时间戳</th><th>包含</th><th>大小</th><th>建立时间</th><th>操作</th></tr>
+        </thead>
+        <tbody>
+          <% backupList.forEach(b => { %>
+            <tr>
+              <td><code style="font-size:0.75rem;"><%= b.ts %></code><% if (b.isSafety) { %> <span style="color:var(--yellow);font-size:0.7rem;">safety</span><% } %></td>
+              <td style="font-size:0.75rem;color:var(--text-dim);"><%= (b.includes || []).join(" · ") %></td>
+              <td style="font-size:0.75rem;"><%= b.sizeStr %></td>
+              <td style="font-size:0.75rem;color:var(--text-dim);"><%= new Date(b.mtime).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) %></td>
+              <td>
+                <form action="/settings/rollback/<%= b.ts %>" method="POST" style="display:inline;"
+                  onsubmit="return confirm('⚠ 确认回滚到 <%= b.ts %>？\n这会把 depts/ global/ data/ secrets/ 换成备份内容.\n当前状态会先另外预备份 (安全可回头).');">
+                  <button type="submit" class="btn ghost" style="padding:0.3rem 0.7rem;font-size:0.75rem;color:var(--yellow);border-color:var(--yellow);">↶ 回滚</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+
   <% if (backups.count > 0) { %>
-    <div style="margin-top: 1rem; padding: 0.75rem 1rem; background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.85rem;">
-      当前有 <strong style="color: var(--accent);"><%= backups.count %></strong> 个备份, 总共 <%= backups.totalSize %>
+    <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-dim);">
+      共 <strong style="color: var(--accent);"><%= backups.count %></strong> 个备份, 总占用 <%= backups.totalSize %> ·
+      清旧备份要 SSH 跑 <code>bash scripts/clean-backups.sh</code> (保留最近 5 个)
     </div>
   <% } %>
 </div>
