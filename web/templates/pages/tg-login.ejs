@@ -1,0 +1,165 @@
+<% /* 通用 TG 登入 wizard — dept 和 global 共用. 由 routes 传入 target + postBase + returnUrl. */ %>
+<div class="page-header">
+  <div>
+    <div class="page-title">Telegram 登入 · <%= target.name %></div>
+    <div class="page-subtitle">
+      <%= locals.subLabel || target.label %> ·
+      <% if (step === "phone") { %>第 1 步 · 输入手机号
+      <% } else if (step === "code") { %>第 2 步 · 输入验证码
+      <% } else if (step === "password") { %>第 3 步 · 输入两步验证密码
+      <% } else if (step === "done") { %>✓ 登入成功
+      <% } %>
+    </div>
+  </div>
+  <div>
+    <a href="<%= returnUrl %>" class="btn ghost">返回</a>
+  </div>
+</div>
+
+<!-- 整体说明 -->
+<% if (step === "phone") { %>
+  <div class="panel" style="background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent);">
+    <div style="font-weight: 700; color: var(--accent); margin-bottom: 0.5rem;">ℹ 这里在做什么</div>
+    <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.8;">
+      用一个真人 TG 号登入（不是 Bot），系统会把这个号的 session 保存下来，
+      <strong style="color: var(--accent);"><%= target.type === "global" ? "作为跨部门订阅监听" : "作为本部门监听账号" %></strong>。
+      登入后这个号所在的所有群，系统都能收到消息。
+      <br><br>
+      <strong style="color: var(--yellow);">⚠️ 该用什么号：</strong>
+      <% if (target.type === "dept") { %>
+        本部门专用的号（只加入跟本部门业务相关的群），避免用日常号（个人群多、容易触发 TG 风控）。
+      <% } else { %>
+        一个"汇总员"号，需要能同时加入<strong>所有部门</strong>的<%= target.name === "title-sheet-writer" ? "中转群" : "审查报告群" %>。
+      <% } %>
+    </div>
+  </div>
+<% } %>
+
+<div class="wizard-steps">
+  <div class="wizard-step <%= step === 'phone' ? 'active' : (['code','password','done'].includes(step) ? 'done' : '') %>">1 · 手机号</div>
+  <div class="wizard-step <%= step === 'code' ? 'active' : (['password','done'].includes(step) ? 'done' : '') %>">2 · 验证码</div>
+  <div class="wizard-step <%= step === 'password' ? 'active' : (step === 'done' ? 'done' : '') %>">3 · 2FA（若有）</div>
+  <div class="wizard-step <%= step === 'done' ? 'active done' : '' %>">4 · 完成</div>
+</div>
+
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem;">⚠ <%= error %></div>
+  </div>
+<% } %>
+
+<% if (step === "phone") { %>
+
+  <form action="<%= postBase %>/phone" method="POST">
+    <div class="panel">
+      <div class="panel-title">输入 TG 账号绑定的手机号</div>
+      <div class="form-group">
+        <label>手机号（含国码）</label>
+        <input type="tel" name="phone" placeholder="+8613800138000" required autofocus value="<%= locals.phone || '' %>">
+        <div class="hint">
+          <strong>必须含国码</strong>（就是 + 开头的国家区号）。例：
+          <code>+886912345678</code>（台湾）、
+          <code>+8613800138000</code>（大陆）、
+          <code>+85291234567</code>（香港）。<br>
+          TG 会把验证码寄到这个手机号对应账号的 TG App 或短信。
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn">寄验证码</button>
+      </div>
+    </div>
+  </form>
+
+  <div class="panel" style="background: rgba(255, 201, 64, 0.06); border-left: 3px solid var(--yellow);">
+    <strong style="color: var(--yellow);">⚠ 账号安全须知</strong>
+    <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0; line-height: 1.8; font-size: 0.85rem;">
+      <li>这是<strong>真人号登入</strong>（不是 Bot）。session 产生后 TG 会认这个设备</li>
+      <li>避免短时间内频繁登入同一个号（TG 会风控锁号，可能要求验证码 + 2FA）</li>
+      <li>session 文件 <code>session.txt</code> = TG 号的登入凭证，<strong>洩漏 = 号被接管</strong></li>
+      <li>不要推 session.txt 到 git（系统已经帮你加了 .gitignore）</li>
+    </ul>
+  </div>
+
+<% } else if (step === "code") { %>
+
+  <form action="<%= postBase %>/code" method="POST">
+    <div class="panel">
+      <div class="panel-title">输入 TG 寄来的验证码</div>
+      <div class="form-group">
+        <label>验证码（<%= phone %>）</label>
+        <input type="text" name="code" placeholder="5-6 位数字" pattern="\d{4,7}" required autofocus autocomplete="one-time-code"
+          inputmode="numeric" style="font-size: 1.2rem; letter-spacing: 0.3em; text-align: center;">
+        <div class="hint">
+          <strong>TG 寄验证码的顺序（从上往下找）：</strong>
+          <ol style="margin: 0.5rem 0 0 1.25rem;">
+            <li>TG App 里的 <strong>Telegram 官方账号</strong>（蓝勾勾官方号发送的消息，优先检查这里）</li>
+            <li>手机短信（如果 App 收不到）</li>
+            <li>其他已登入此号的设备（会弹通知）</li>
+          </ol>
+        </div>
+      </div>
+      <div style="display: flex; gap: 1rem; justify-content: space-between;">
+        <form action="<%= postBase %>/abort" method="POST" style="display:inline;">
+          <button type="submit" class="btn ghost">重新输手机号</button>
+        </form>
+        <button type="submit" class="btn">提交验证码</button>
+      </div>
+    </div>
+  </form>
+
+<% } else if (step === "password") { %>
+
+  <form action="<%= postBase %>/password" method="POST">
+    <div class="panel">
+      <div class="panel-title">两步验证（2FA）密码</div>
+      <div style="padding: 0.75rem 1rem; background: rgba(0, 230, 255, 0.05); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.85rem; color: var(--text-1); margin-bottom: 1rem;">
+        <strong style="color: var(--accent);">ℹ 此账号开了两步验证</strong>
+        <div>请输入你在 TG App 设定的 <strong>Cloud Password</strong>（不是短信验证码，是你自己设定的密码）</div>
+      </div>
+      <div class="form-group">
+        <label>Cloud Password</label>
+        <input type="password" name="password" required autofocus autocomplete="current-password">
+        <div class="hint">忘了的话只能在 TG App 里重设（Settings → Privacy → 2-Step Verification → Forgot password → 会要求重新收短信）</div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button type="submit" class="btn">提交密码</button>
+      </div>
+    </div>
+  </form>
+
+<% } else if (step === "done") { %>
+
+  <div class="panel" style="text-align: center; padding: 3rem 2rem;">
+    <div style="font-family: 'Orbitron', sans-serif; font-size: 2rem; color: var(--green); margin-bottom: 1rem; letter-spacing: 0.2em;">
+      ✓ LOGIN OK
+    </div>
+    <div style="font-size: 1rem; color: var(--text-1); margin-bottom: 0.5rem;">
+      Session 已写入 <code style="color: var(--accent);"><%= target.type === "dept" ? "depts/" + target.name : "global/" + target.name %>/session.txt</code>
+    </div>
+    <% if (locals.bytes) { %>
+      <div style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 2rem;"><%= bytes %> bytes</div>
+    <% } %>
+
+    <div style="margin-top: 1.5rem; padding: 1.25rem; background: rgba(0, 255, 149, 0.04); border: 1px solid rgba(0, 255, 149, 0.2); border-radius: 8px; text-align: left; max-width: 560px; margin-left: auto; margin-right: auto;">
+      <div style="font-family: 'Orbitron', sans-serif; font-size: 0.8rem; color: var(--green); letter-spacing: 0.15em; margin-bottom: 0.75rem;">▸ 下一步</div>
+      <ol style="font-size: 0.85rem; color: var(--text-1); line-height: 2; padding-left: 1.25rem; margin: 0;">
+        <% if (target.type === "dept") { %>
+          <li>回编辑页确认 config（中转群名 / Sheet ID 等）</li>
+          <li>确认 TG 号已加入中转群 <strong style="color: var(--accent);"><%= locals.outputChat || '中转群' %></strong></li>
+          <li>启动进程：编辑页点 <strong>▶ 启动</strong></li>
+        <% } else { %>
+          <li>回 <a href="/settings/global/<%= target.name %>/edit" style="color: var(--accent);">编辑页</a> 把该填的 config 填完（路由/订阅群/Sheet 等）</li>
+          <li>确认该 TG 号已加入 config 中列出的所有群</li>
+          <li>在 <a href="/settings" style="color: var(--accent);">系统设置</a>点 <strong>▶ 启动</strong></li>
+        <% } %>
+        <li>回 <a href="/dashboard" style="color: var(--accent);">Dashboard</a> 看状态灯（应该变绿）</li>
+      </ol>
+    </div>
+
+    <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 2rem;">
+      <a href="<%= returnUrl %>" class="btn">返回</a>
+      <a href="/dashboard" class="btn ghost">Dashboard</a>
+    </div>
+  </div>
+
+<% } %>

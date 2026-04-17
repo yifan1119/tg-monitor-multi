@@ -55,7 +55,8 @@
                 <% if (g.sessionOk) { %>
                   <span class="dot green"></span>OK
                 <% } else { %>
-                  <span class="dot yellow"></span>需登入
+                  <span class="dot yellow"></span>
+                  <a href="/settings/global/<%= gk.kind %>/login" style="color:var(--yellow);">需登入</a>
                 <% } %>
               </td>
               <% if (p) { %>
@@ -64,14 +65,16 @@
                 <td style="color: var(--text-dim);">未启动</td>
               <% } %>
               <td>
+                <a href="/settings/global/<%= gk.kind %>/edit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">编辑</a>
+                <a href="/settings/global/<%= gk.kind %>/login" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">🔑</a>
                 <form action="/settings/global/<%= gk.kind %>/restart" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">↻</button>
+                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="重启">↻</button>
                 </form>
                 <form action="/settings/global/<%= gk.kind %>/start" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">▶</button>
+                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="启动">▶</button>
                 </form>
                 <form action="/settings/global/<%= gk.kind %>/stop" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">⏸</button>
+                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="停止">⏸</button>
                 </form>
               </td>
             <% } %>
@@ -80,17 +83,6 @@
       </tbody>
     </table>
   </div>
-
-  <% if (globals.length > 0) { %>
-    <div style="margin-top: 1rem; padding: 0.85rem 1rem; background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent); border-radius: 0 6px 6px 0; font-size: 0.8rem; color: var(--text-1); line-height: 1.8;">
-      <strong style="color: var(--accent);">编辑 config / TG 登入 (在 VPS 上跑)</strong>
-      <br>
-      <% globals.forEach(g => { %>
-        · <code style="color: var(--accent);">vi global/<%= g.kind %>/config.json</code><br>
-        · <code style="color: var(--accent);">node scripts/login-global.js <%= g.kind %></code><br>
-      <% }); %>
-    </div>
-  <% } %>
 </div>
 
 <!-- ═══ 健康检查 ═══ -->

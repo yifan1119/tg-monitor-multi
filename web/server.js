@@ -471,82 +471,101 @@ app.post("/depts/:name/delete", async (req, res) => {
   }
 });
 
-// ─── TG 登入 wizard ─────────────────────────────
+// ─── TG 登入 wizard (dept + global 都走这条) ─────────
 const tgLogin = require("./lib/tg-login");
 
-function renderDeptLogin(res, name, opts = {}, status = 200) {
-  const dept = loadDeptForEdit(name);
-  if (!dept) return res.status(404).send(`部门不存在: ${name}`);
-  res.status(status).render("pages/dept-login", {
-    title: `TG 登入 · ${name}`,
-    active: "depts",
-    deptName: name,
-    outputChat: dept.config.outputChatName || "",
+function renderLoginPage(res, target, extraCtx, opts = {}, status = 200) {
+  res.status(status).render("pages/tg-login", {
+    title: `TG 登入 · ${target.name}`,
+    active: target.type === "dept" ? "depts" : "settings",
+    target,                               // { type, name, ... }
+    returnUrl: target.type === "dept" ? `/depts/${target.name}/edit` : `/settings`,
+    postBase:  target.type === "dept" ? `/depts/${target.name}/login` : `/settings/global/${target.name}/login`,
     step: opts.step || "phone",
     phone: opts.phone || null,
     error: opts.error || null,
     bytes: opts.bytes || null,
+    ...extraCtx,
   });
 }
 
-app.get("/depts/:name/login", (req, res) => {
-  const name = req.params.name;
-  const status = tgLogin.getStatus(name);
-  if (status.status === "awaiting_code") {
-    return renderDeptLogin(res, name, { step: "code", phone: status.phone });
-  }
-  if (status.status === "awaiting_password") {
-    return renderDeptLogin(res, name, { step: "password", phone: status.phone });
-  }
-  renderDeptLogin(res, name, { step: "phone" });
-});
+function handleLoginFlow(target, extraCtx) {
+  return {
+    get: (req, res) => {
+      const s = tgLogin.getStatus(target);
+      if (s.status === "awaiting_code")     return renderLoginPage(res, target, extraCtx, { step: "code",     phone: s.phone });
+      if (s.status === "awaiting_password") return renderLoginPage(res, target, extraCtx, { step: "password", phone: s.phone });
+      renderLoginPage(res, target, extraCtx, { step: "phone" });
+    },
+    phone: async (req, res) => {
+      const phone = String(req.body.phone || "").trim();
+      try {
+        await tgLogin.startLogin(target, phone);
+        renderLoginPage(res, target, extraCtx, { step: "code", phone });
+      } catch (e) {
+        console.error("[tg-login/phone]", target.key, e.message);
+        renderLoginPage(res, target, extraCtx, { step: "phone", phone, error: e.message }, 400);
+      }
+    },
+    code: async (req, res) => {
+      const code = String(req.body.code || "").trim();
+      try {
+        const r = await tgLogin.submitCode(target, code);
+        if (r.status === "done") return renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
+        renderLoginPage(res, target, extraCtx, { step: "password" });
+      } catch (e) {
+        console.error("[tg-login/code]", target.key, e.message);
+        const s = tgLogin.getStatus(target);
+        const step = s.status === "awaiting_password" ? "password" : "code";
+        renderLoginPage(res, target, extraCtx, { step, phone: s.phone, error: e.message }, 400);
+      }
+    },
+    password: async (req, res) => {
+      const password = String(req.body.password || "");
+      try {
+        const r = await tgLogin.submitPassword(target, password);
+        renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
+      } catch (e) {
+        console.error("[tg-login/password]", target.key, e.message);
+        renderLoginPage(res, target, extraCtx, { step: "password", error: e.message }, 400);
+      }
+    },
+    abort: (req, res) => {
+      tgLogin.abort(target);
+      res.redirect(req.body._returnTo || "/");
+    },
+  };
+}
 
-app.post("/depts/:name/login/phone", async (req, res) => {
-  const name = req.params.name;
-  const phone = String(req.body.phone || "").trim();
-  try {
-    await tgLogin.startLogin(name, phone);
-    renderDeptLogin(res, name, { step: "code", phone });
-  } catch (e) {
-    console.error("[tg-login/phone]", e.message);
-    renderDeptLogin(res, name, { step: "phone", phone, error: e.message }, 400);
-  }
+// ─── Dept login ────────────────────────────────
+app.get ("/depts/:name/login",          (req, res) => {
+  const dept = loadDeptForEdit(req.params.name);
+  if (!dept) return res.status(404).send(`部门不存在: ${req.params.name}`);
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  handleLoginFlow(target, { outputChat: dept.config.outputChatName || "", subLabel: `部门 · ${req.params.name}` }).get(req, res);
 });
-
-app.post("/depts/:name/login/code", async (req, res) => {
-  const name = req.params.name;
-  const code = String(req.body.code || "").trim();
-  try {
-    const result = await tgLogin.submitCode(name, code);
-    if (result.status === "done") {
-      return renderDeptLogin(res, name, { step: "done", bytes: result.bytes });
-    }
-    // 需要 2FA
-    renderDeptLogin(res, name, { step: "password" });
-  } catch (e) {
-    console.error("[tg-login/code]", e.message);
-    const status = tgLogin.getStatus(name);
-    const step = status.status === "awaiting_password" ? "password" : "code";
-    renderDeptLogin(res, name, { step, phone: status.phone, error: e.message }, 400);
-  }
+app.post("/depts/:name/login/phone",    (req, res) => {
+  const dept = loadDeptForEdit(req.params.name);
+  if (!dept) return res.status(404).send("部门不存在");
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  handleLoginFlow(target, { outputChat: dept.config.outputChatName || "", subLabel: `部门 · ${req.params.name}` }).phone(req, res);
 });
-
-app.post("/depts/:name/login/password", async (req, res) => {
-  const name = req.params.name;
-  const password = String(req.body.password || "");
-  try {
-    const result = await tgLogin.submitPassword(name, password);
-    renderDeptLogin(res, name, { step: "done", bytes: result.bytes });
-  } catch (e) {
-    console.error("[tg-login/password]", e.message);
-    renderDeptLogin(res, name, { step: "password", error: e.message }, 400);
-  }
+app.post("/depts/:name/login/code",     (req, res) => {
+  const dept = loadDeptForEdit(req.params.name);
+  if (!dept) return res.status(404).send("部门不存在");
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  handleLoginFlow(target, { outputChat: dept.config.outputChatName || "", subLabel: `部门 · ${req.params.name}` }).code(req, res);
 });
-
-app.post("/depts/:name/login/abort", (req, res) => {
-  const name = req.params.name;
-  tgLogin.abort(name);
-  res.redirect(`/depts/${name}/login`);
+app.post("/depts/:name/login/password", (req, res) => {
+  const dept = loadDeptForEdit(req.params.name);
+  if (!dept) return res.status(404).send("部门不存在");
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  handleLoginFlow(target, { outputChat: dept.config.outputChatName || "", subLabel: `部门 · ${req.params.name}` }).password(req, res);
+});
+app.post("/depts/:name/login/abort",    (req, res) => {
+  const target = tgLogin.makeTarget("dept", req.params.name);
+  req.body._returnTo = `/depts/${req.params.name}/login`;
+  handleLoginFlow(target, {}).abort(req, res);
 });
 app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
 app.get("/logs",                 placeholder("日志", "即时 pm2 logs 串流", "v0.3 实作", "留到 v0.3。届时可用 WebSocket 串 pm2 logs，按部门筛选 + 搜寻关键字。"));
@@ -684,6 +703,130 @@ app.post("/settings/global/:kind/:action", async (req, res) => {
   } catch (e) {
     res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
   }
+});
+
+// ─── 全局进程: 编辑 config ─────────────────────
+const GLOBAL_DIR = path.join(ROOT, "global");
+
+function loadGlobalForEdit(kind) {
+  if (!GLOBAL_KINDS.includes(kind)) return null;
+  const dir = path.join(GLOBAL_DIR, kind);
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return null;
+  const configPath = path.join(dir, "config.json");
+  const config = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath, "utf8")) : {};
+  const sessionPath = path.join(dir, "session.txt");
+  const sessionOk = fs.existsSync(sessionPath) && fs.statSync(sessionPath).size > 0;
+  return { kind, dir, config, sessionOk };
+}
+
+app.get("/settings/global/:kind/edit", async (req, res) => {
+  const kind = req.params.kind;
+  const g = loadGlobalForEdit(kind);
+  if (!g) {
+    return res.status(404).render("pages/placeholder", {
+      title: "未建立", subtitle: "", stage: "",
+      description: `global/${kind}/ 不存在. 请先到 /settings 建立.`, active: "settings",
+    });
+  }
+  const all = await dataProvider.listProcesses();
+  const p = all.find(x => x.name === `tg-${kind}`);
+  res.render("pages/global-edit", {
+    title: `编辑 · ${kind}`, active: "settings",
+    kind, g, proc: p, config: g.config,
+    formData: {}, error: null, flash: req.query.flash || null,
+  });
+});
+
+app.post("/settings/global/:kind/edit", async (req, res) => {
+  const kind = req.params.kind;
+  const g = loadGlobalForEdit(kind);
+  if (!g) return res.status(404).send("未建立");
+  const body = req.body;
+
+  try {
+    const updated = { ...g.config };
+    if (body.backfillIntervalSec !== undefined && body.backfillIntervalSec !== "") {
+      const s = Number(body.backfillIntervalSec);
+      if (Number.isFinite(s) && s >= 10) updated.backfillIntervalMs = Math.round(s * 1000);
+    }
+    if (body.backfillLimit !== undefined && body.backfillLimit !== "") {
+      const n = Number(body.backfillLimit);
+      if (Number.isFinite(n) && n >= 1) updated.backfillLimit = n;
+    }
+
+    if (kind === "title-sheet-writer") {
+      const routeKeys   = [].concat(body.route_key   || []);
+      const routeInsts  = [].concat(body.route_inst  || []);
+      const routeSheets = [].concat(body.route_sheet || []);
+      const routeTabs   = [].concat(body.route_tab   || []);
+      const routes = {};
+      for (let i = 0; i < routeKeys.length; i++) {
+        const k = String(routeKeys[i] || "").trim();
+        if (!k) continue;
+        routes[k] = {
+          instance:      String(routeInsts[i]  || "").trim(),
+          spreadsheetId: String(routeSheets[i] || "").trim(),
+          sheetName:     String(routeTabs[i]   || "").trim(),
+        };
+      }
+      updated.routes = routes;
+    }
+
+    if (kind === "review-report-writer") {
+      updated.inputChatNames = String(body.input_chats || "")
+        .split(/[,，、\n\r]+/).map(s => s.trim()).filter(Boolean);
+      updated.spreadsheetId = String(body.spreadsheetId || "").trim();
+      updated.sheetName     = String(body.sheetName     || "").trim();
+      updated.keyword       = String(body.keyword       || "").trim() || "审查报告";
+      updated.resultKeyword = String(body.resultKeyword || "").trim() || "闭环处理结果说明";
+      updated.strictMode    = body.strictMode === "on" || body.strictMode === "true";
+    }
+
+    fs.writeFileSync(path.join(g.dir, "config.json"), JSON.stringify(updated, null, 2) + "\n");
+    await pm2Exec("restart", `tg-${kind}`);
+    res.redirect(`/settings/global/${kind}/edit?flash=${encodeURIComponent("已保存 config 并尝试重启")}`);
+  } catch (e) {
+    console.error("save global config:", e);
+    const all = await dataProvider.listProcesses();
+    const p = all.find(x => x.name === `tg-${kind}`);
+    res.status(400).render("pages/global-edit", {
+      title: `编辑 · ${kind}`, active: "settings",
+      kind, g, proc: p, config: g.config,
+      formData: body, error: e.message, flash: null,
+    });
+  }
+});
+
+// ─── 全局进程: TG 登入 ─────────────────────────
+app.get ("/settings/global/:kind/login",          (req, res) => {
+  const kind = req.params.kind;
+  if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
+  const target = tgLogin.makeTarget("global", kind);
+  handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).get(req, res);
+});
+app.post("/settings/global/:kind/login/phone",    (req, res) => {
+  const kind = req.params.kind;
+  if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
+  const target = tgLogin.makeTarget("global", kind);
+  handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).phone(req, res);
+});
+app.post("/settings/global/:kind/login/code",     (req, res) => {
+  const kind = req.params.kind;
+  if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
+  const target = tgLogin.makeTarget("global", kind);
+  handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).code(req, res);
+});
+app.post("/settings/global/:kind/login/password", (req, res) => {
+  const kind = req.params.kind;
+  if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
+  const target = tgLogin.makeTarget("global", kind);
+  handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).password(req, res);
+});
+app.post("/settings/global/:kind/login/abort",    (req, res) => {
+  const kind = req.params.kind;
+  const target = tgLogin.makeTarget("global", kind);
+  req.body._returnTo = `/settings/global/${kind}/login`;
+  handleLoginFlow(target, {}).abort(req, res);
 });
 
 // ─── Healthcheck 启用 / 停用 ───────────────────

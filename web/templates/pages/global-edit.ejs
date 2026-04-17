@@ -1,0 +1,241 @@
+<% const fd = locals.formData || {}; const cfg = locals.config || {}; %>
+<div class="page-header">
+  <div>
+    <div class="page-title">编辑全局进程 · <%= kind %></div>
+    <div class="page-subtitle">修改 <code>global/<%= kind %>/config.json</code></div>
+  </div>
+  <div><a href="/settings" class="btn ghost">返回设置</a></div>
+</div>
+
+<% if (locals.flash) { %>
+  <div class="panel" style="border-left: 3px solid var(--green); background: rgba(0, 255, 149, 0.06);">
+    <div style="color: var(--green); font-weight: 700; font-size: 0.85rem;">✓ <%= flash %></div>
+  </div>
+<% } %>
+<% if (locals.error) { %>
+  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
+    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 保存失败</div>
+    <div style="color: var(--text-0); font-size: 0.9rem;"><%= error %></div>
+  </div>
+<% } %>
+
+<!-- ═══ 整体业务说明 ═══ -->
+<div class="panel" style="background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent);">
+  <div style="font-weight: 700; color: var(--accent); margin-bottom: 0.5rem;">ℹ 这个进程做什么</div>
+  <% if (kind === "title-sheet-writer") { %>
+    <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.9;">
+      <strong>跨部门群名变更汇总</strong>。一个"汇总员"TG 号同时加入 N 个部门的中转群
+      （例如<code>悦达-业务审查</code>、<code>逸品-业务审查</code>...）。
+      当某个中转群内出现<strong>"群名变更提醒"</strong>消息时（由该部门的 listener 推送），
+      本进程根据消息来自<strong>哪个中转群</strong>，去下面 <code>routes</code> 里查对应的
+      Google Sheet → 把群名变更事件写到该部门的 Sheet 里。
+      <br><br>
+      <strong style="color: var(--yellow);">用途：</strong>
+      每个广告帐号（客户群）改名的履历跨部门集中记录，谁在什么时间把客户群改成了什么状态，一查可见。
+    </div>
+  <% } else if (kind === "review-report-writer") { %>
+    <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.9;">
+      <strong>审查报告闭环跟踪</strong>。一个"观察员"TG 号订阅 N 个部门的<strong>审查报告群</strong>
+      （不是中转群！另一批群，例<code>悦达-审查报告</code>）。
+      当某群里出现含"审查报告"关键字的消息 → 建立一笔记录。
+      之后出现含"闭环处理结果说明"的消息 → 关闭这笔记录（闭环）。
+      所有部门的记录<strong>全部汇总到同一张 Sheet</strong>。
+      <br><br>
+      <strong style="color: var(--yellow);">用途：</strong>
+      稽核 — 谁家有多少问题没闭环、平均闭环时间、按部门统计问题量。
+    </div>
+  <% } %>
+</div>
+
+<!-- ═══ 进程状态 + TG 登入 ═══ -->
+<div class="panel">
+  <div class="panel-title">进程状态 / TG 登入</div>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color: var(--text-dim); width: 140px;">PM2 进程</td>
+        <td>
+          <code>tg-<%= kind %></code>
+          <% if (proc) { %>
+            · <span class="status-<%= proc.status %>">● <%= proc.status %></span>
+            · CPU <%= proc.cpu.toFixed(1) %>% · RAM <%= proc.mem %> MB · 重启 <%= proc.restarts %> 次
+          <% } else { %>
+            · <span style="color: var(--text-dim);">未启动</span>
+          <% } %>
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text-dim);">TG Session</td>
+        <td>
+          <% if (g.sessionOk) { %>
+            <span class="dot green"></span>已登入
+            <a href="/settings/global/<%= kind %>/login" class="btn ghost" style="padding: 0.2rem 0.6rem; font-size: 0.7rem; margin-left: 0.5rem;">重新登入</a>
+          <% } else { %>
+            <span class="dot yellow"></span>未登入
+            <a href="/settings/global/<%= kind %>/login" class="btn" style="padding: 0.25rem 0.7rem; font-size: 0.7rem; margin-left: 0.5rem;">🔑 去登入</a>
+          <% } %>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+    <form action="/settings/global/<%= kind %>/restart" method="POST" style="display:inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">↻ 重启</button>
+    </form>
+    <form action="/settings/global/<%= kind %>/start" method="POST" style="display:inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">▶ 启动</button>
+    </form>
+    <form action="/settings/global/<%= kind %>/stop" method="POST" style="display:inline;">
+      <button type="submit" class="btn ghost" style="padding: 0.4rem 0.9rem; font-size: 0.75rem;">⏸ 停止</button>
+    </form>
+  </div>
+</div>
+
+<!-- ═══ Config 表单 ═══ -->
+<form action="/settings/global/<%= kind %>/edit" method="POST">
+
+<% if (kind === "title-sheet-writer") { %>
+
+  <div class="panel">
+    <div class="panel-title">订阅路由 (routes)</div>
+    <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.8;">
+      <strong>核心配置</strong>。每一条路由告诉系统："来自 <em>某某中转群</em> 的消息 → 写到 <em>哪张 Sheet 的哪个分页</em>"。
+      <br>
+      有几个部门，就要有几条路由（不然那些部门的群名变更不会被写）。
+    </div>
+    <div id="routes-container">
+      <% const routes = cfg.routes || {}; const routeEntries = Object.entries(routes); %>
+      <% if (routeEntries.length === 0) { routeEntries.push(["", { instance: "", spreadsheetId: "", sheetName: "" }]); } %>
+      <% routeEntries.forEach(([key, val], i) => { %>
+        <div class="route-row" style="border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; background: rgba(7, 10, 21, 0.3);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="color: var(--accent); font-size: 0.8rem;">路由 #<%= i + 1 %></strong>
+            <button type="button" class="btn ghost" style="padding: 0.2rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);"
+              onclick="this.closest('.route-row').remove()">✕ 删除此路由</button>
+          </div>
+          <div class="form-group">
+            <label>中转群名称（消息来源）</label>
+            <input type="text" name="route_key" value="<%= key %>" placeholder="例: 悦达-业务审查">
+            <div class="hint">这个"汇总员"号<strong>必须已加入这个群</strong>. 填跟 listener 推送目标（该部门的 outputChatName）一模一样的名字</div>
+          </div>
+          <div class="form-group">
+            <label>部门代号（标识用，方便对照）</label>
+            <input type="text" name="route_inst" value="<%= val.instance || '' %>" placeholder="例: yueda">
+            <div class="hint">对应 <code>depts/&lt;这个名字&gt;</code>, 写到 Sheet 时不显示, 只是标识方便对照</div>
+          </div>
+          <div class="form-group">
+            <label>目标 Spreadsheet ID</label>
+            <input type="text" name="route_sheet" value="<%= val.spreadsheetId || '' %>" placeholder="1Q9pMXg5I1dU...">
+            <div class="hint">这条路由匹配到的事件写到<strong>这张 Sheet</strong>. 从 Sheet 网址 <code>/d/&lt;ID&gt;/edit</code> 取. 不同部门通常是不同的 Sheet</div>
+          </div>
+          <div class="form-group">
+            <label>目标工作表分页</label>
+            <input type="text" name="route_tab" value="<%= val.sheetName || '' %>" placeholder="例: 广告明细YD">
+            <div class="hint">该 Sheet 内的哪个分页. 分页要先在 Sheet 里手动建好</div>
+          </div>
+        </div>
+      <% }); %>
+    </div>
+    <button type="button" class="btn ghost" onclick="addRoute()">+ 新增一条路由</button>
+
+    <script>
+      function addRoute() {
+        const c = document.getElementById('routes-container');
+        const n = c.children.length + 1;
+        const row = document.createElement('div');
+        row.className = 'route-row';
+        row.style.cssText = 'border: 1px solid var(--panel-border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem; background: rgba(7, 10, 21, 0.3);';
+        row.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <strong style="color: var(--accent); font-size: 0.8rem;">路由 #` + n + `</strong>
+            <button type="button" class="btn ghost" style="padding: 0.2rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);" onclick="this.closest('.route-row').remove()">✕ 删除此路由</button>
+          </div>
+          <div class="form-group"><label>中转群名称（消息来源）</label>
+            <input type="text" name="route_key" placeholder="例: 悦达-业务审查">
+            <div class="hint">"汇总员"号必须已加入这个群</div></div>
+          <div class="form-group"><label>部门代号</label>
+            <input type="text" name="route_inst" placeholder="例: yueda"></div>
+          <div class="form-group"><label>目标 Spreadsheet ID</label>
+            <input type="text" name="route_sheet"></div>
+          <div class="form-group"><label>目标工作表分页</label>
+            <input type="text" name="route_tab" placeholder="例: 广告明细YD"></div>`;
+        c.appendChild(row);
+      }
+    </script>
+  </div>
+
+<% } else if (kind === "review-report-writer") { %>
+
+  <div class="panel">
+    <div class="panel-title">订阅的审查报告群</div>
+    <div class="form-group">
+      <label>群名列表（用逗号分隔）</label>
+      <textarea name="input_chats" rows="4" style="font-family: 'JetBrains Mono', monospace;"><%= (cfg.inputChatNames || []).join(", ") %></textarea>
+      <div class="hint">
+        <strong>订阅这些审查报告群的消息</strong>。用这个"观察员"TG 号必须已加入全部这些群。<br>
+        例：<code>悦达-审查报告, 逸品-审查报告, 鼎丰-审查报告</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">目标汇总 Sheet</div>
+    <div style="color: var(--text-dim); font-size: 0.8rem; margin-bottom: 1rem;">
+      所有部门的审查报告<strong>汇总到同一张</strong> Sheet（不分流到各部门）
+    </div>
+    <div class="form-group">
+      <label>Spreadsheet ID</label>
+      <input type="text" name="spreadsheetId" value="<%= cfg.spreadsheetId || '' %>" placeholder="1lu4J3v9GsDO..." required>
+      <div class="hint">从 Sheet 网址 <code>/d/&lt;ID&gt;/edit</code> 取. Sheet 必须把 Google SA email 加为"编辑者"</div>
+    </div>
+    <div class="form-group">
+      <label>工作表分页名称</label>
+      <input type="text" name="sheetName" value="<%= cfg.sheetName || '审查报告001' %>" required>
+      <div class="hint">分页要先手动建好, 例: <code>审查报告001</code></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">闭环跟踪关键字</div>
+    <div class="form-group">
+      <label>触发关键字（建立记录）</label>
+      <input type="text" name="keyword" value="<%= cfg.keyword || '审查报告' %>" required>
+      <div class="hint">消息包含这个词 → 建立一笔待闭环记录. 预设 <code>审查报告</code></div>
+    </div>
+    <div class="form-group">
+      <label>闭环关键字（关闭记录）</label>
+      <input type="text" name="resultKeyword" value="<%= cfg.resultKeyword || '闭环处理结果说明' %>" required>
+      <div class="hint">后续消息包含这个词 → 关闭对应记录. 预设 <code>闭环处理结果说明</code></div>
+    </div>
+    <div class="form-group">
+      <label>
+        <input type="checkbox" name="strictMode" value="on" <%= cfg.strictMode !== false ? "checked" : "" %>>
+        严格模式
+      </label>
+      <div class="hint">开启时: 只认完全匹配关键字的消息. 关闭时: 含关键字作为子串也算</div>
+    </div>
+  </div>
+
+<% } %>
+
+  <div class="panel">
+    <div class="panel-title">进阶参数（通用）</div>
+    <div class="form-group">
+      <label>Backfill 间隔（秒）</label>
+      <input type="number" name="backfillIntervalSec" min="10" step="1"
+        value="<%= Math.round((cfg.backfillIntervalMs || 60000) / 1000) %>">
+      <div class="hint">每 N 秒补扫最近消息（防漏）。默认 60 秒</div>
+    </div>
+    <div class="form-group">
+      <label>Backfill 扫几条</label>
+      <input type="number" name="backfillLimit" min="1" step="1"
+        value="<%= cfg.backfillLimit || 30 %>">
+      <div class="hint">每次补扫看最近几条消息. 默认 30</div>
+    </div>
+  </div>
+
+  <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+    <a href="/settings" class="btn ghost">取消</a>
+    <button type="submit" class="btn">保存并重启</button>
+  </div>
+</form>

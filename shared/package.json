@@ -1,6 +1,6 @@
 {
   "name": "tg-monitor-multi-shared",
-  "version": "0.3.0-docker",
+  "version": "0.3.1-docker",
   "description": "Shared runtime for all tg-monitor-multi department processes",
   "private": true,
   "scripts": {

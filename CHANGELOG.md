@@ -4,6 +4,31 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.3.1-docker] — 2026-04-17
+
+UI 细节改进 + 全局进程 Web 化.
+
+### 改动
+- 关键字: textarea (每行一个) → input (逗号分隔), 后端支持 , ， 、 \n\r 四种分隔符
+- 时间单位: UI 从 ms 改成分钟/秒 (后端仍用 ms 存 config, 不破坏 R1 schema)
+  - 冷却时间: 分钟
+  - Backfill 间隔: 秒
+- 介面: 繁→简全盘转换 (23 个 UI 文件)
+
+### 新增 (全局进程完全 Web 化, 不再靠 CLI)
+- web/lib/tg-login.js 重构: 抽象 target (dept/global) 两种类型
+- templates/pages/tg-login.ejs (取代 dept-login.ejs): dept 和 global 共用登入 wizard
+- templates/pages/global-edit.ejs: 全局进程编辑页
+  - title-sheet-writer: routes 动态多行 UI (新增/删除路由条目)
+  - review-report-writer: inputChatNames 逗号分隔 + Sheet + 关键字
+  - 每个栏位详细 hint (为什么填 / 填错会怎样 / 范例)
+  - 顶部整体业务说明 (这个进程做什么, 写到哪, 用途)
+- server.js: /settings/global/:kind/edit + login/phone/code/password/abort routes
+- settings.ejs: 去掉 "在 VPS 上跑 CLI" 提示, 加"编辑 / 🔑 登入"按钮
+
+
+---
+
 ## [0.3.0-docker] — 2026-04-17
 
 **Docker 化** — 主推部署方式改成 Docker, 大幅降低跨 OS / 跨 Node 版本的部署坑.
