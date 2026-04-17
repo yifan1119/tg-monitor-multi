@@ -19,16 +19,26 @@ const ROOT = path.resolve(__dirname, "..", "..");
 const BACKUPS_DIR = path.join(ROOT, ".backups");
 const TRASH_DIR = path.join(ROOT, ".trash");
 
-// 这些文件改变 = 需要重建 Docker 镜像, Web 搞不定
+// 这些文件改变 = 真的需要重建 Docker 镜像 (依赖/基础镜像变动)
+// package.json 不在此 — 可能只是 version 改, 用 isPackageJsonSafe 判断
 const HARD_UPDATE_PATTERNS = [
   /^Dockerfile$/,
   /^docker-compose\.yml$/,
-  /^package\.json$/,
   /^package-lock\.json$/,
-  /^web\/package\.json$/,
   /^web\/package-lock\.json$/,
-  /^shared\/package\.json$/,
+  /^shared\/package-lock\.json$/,
 ];
+
+// package.json 变动: 若 diff 只改了 "version" 字段, 视为软升级 OK
+function isPackageJsonSafe(file) {
+  try {
+    const diff = execFileSync("git", ["diff", "HEAD..origin/main", "--", file], { cwd: ROOT, stdio: ["ignore", "pipe", "pipe"] }).toString();
+    // 扫 diff 的 +/- 行, 若全部改动只命中 "version" 字段, 就是安全的版本号升级
+    const changedLines = diff.split("\n").filter(l => (l.startsWith("+") || l.startsWith("-")) && !l.startsWith("+++") && !l.startsWith("---"));
+    if (changedLines.length === 0) return true;
+    return changedLines.every(l => /"version"\s*:/.test(l));
+  } catch { return false; }
+}
 
 // 需要 pm2 reload 的进程前缀 (故意排除 tg-monitor-web)
 const RELOAD_PREFIXES = [
@@ -69,7 +79,13 @@ function checkUpdates() {
       changedFiles = execFileSync("git", ["diff", "--name-only", "HEAD..origin/main"], { cwd: ROOT })
         .toString().trim().split("\n").filter(Boolean);
     }
-    const needsImage = changedFiles.some(f => HARD_UPDATE_PATTERNS.some(p => p.test(f)));
+    // 判断是否需要重建镜像:
+    // 1. HARD_UPDATE_PATTERNS 命中 (Dockerfile / lock 文件)
+    // 2. package.json 变了且不只是 version 字段
+    const hardHits = changedFiles.filter(f => HARD_UPDATE_PATTERNS.some(p => p.test(f)));
+    const pkgChanges = changedFiles.filter(f => /^(web\/|shared\/)?package\.json$/.test(f));
+    const unsafePkgChanges = pkgChanges.filter(f => !isPackageJsonSafe(f));
+    const needsImage = hardHits.length > 0 || unsafePkgChanges.length > 0;
     return {
       ok: true,
       behind: Number(behind),
@@ -78,6 +94,7 @@ function checkUpdates() {
       commits,
       changedFiles,
       needsImage,
+      rootPath: ROOT, // 给 UI 显示"cd <path>"
     };
   } catch (e) {
     return { ok: false, error: e.stderr ? e.stderr.toString() : e.message };

@@ -76,10 +76,11 @@
           <ul style="margin:0.5rem 0 0 1.25rem;color:var(--text-1);">${commits}</ul></div>`;
         if (r.needsImage) {
           const affected = r.changedFiles.filter(f => /^(Dockerfile|docker-compose\.yml|.*package(-lock)?\.json)$/.test(f)).join(", ");
+          const rootPath = r.rootPath || "/opt/tg-monitor-multi";
           html += `<div style="margin-top:1rem;padding:1rem;background:rgba(255,201,64,0.08);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;">
             <div style="color:var(--yellow);font-weight:700;margin-bottom:0.5rem;">⚠ 需要重建镜像</div>
-            <div style="font-size:0.85rem;line-height:1.8;">此次升级改了 <code>${affected}</code>, 网页搞不定. 请 SSH 到宿主机跑:<br>
-              <code style="color:var(--accent);">cd tg-monitor-multi && bash scripts/update.sh</code></div></div>`;
+            <div style="font-size:0.85rem;line-height:1.8;">此次升级改了 <code>${affected}</code> (依赖或基础镜像变动), 网页搞不定. 请 SSH 到宿主机跑:<br>
+              <code style="color:var(--accent);user-select:all;display:inline-block;margin-top:0.3rem;padding:0.3rem 0.6rem;background:rgba(7,10,21,0.6);border-radius:4px;">cd ${rootPath} && bash scripts/update.sh</code></div></div>`;
         } else {
           html += `<form action="/ops/update" method="POST" style="margin-top:1rem;" onsubmit="return confirm('执行软升级? 自动备份 depts/global/data/secrets.')">
             <button type="submit" class="btn" style="background:linear-gradient(90deg,var(--green),var(--accent));">⬆ 执行软升级</button></form>`;
