@@ -426,6 +426,13 @@ app.post("/depts/:name/edit", async (req, res) => {
       backfillIntervalMs,
       backfillLimit: Number(body.backfillLimit) || dept.config.backfillLimit,
     };
+    // titleSheet 可选: 同 Spreadsheet, 不同 tab. 填了就写, 没填就只推中转群不写表
+    const titleTab = String(body.titleSheetName || "").trim();
+    if (titleTab) {
+      updated.titleSheet = { spreadsheetId: body.spreadsheetId, sheetName: titleTab };
+    } else {
+      delete updated.titleSheet;
+    }
     const { DEPTS_DIR: DD } = require("../scripts/new-dept");
     fs.writeFileSync(
       path.join(DD, name, "config.json"),
@@ -442,8 +449,21 @@ app.post("/depts/:name/edit", async (req, res) => {
           dept: name,
           onlyIfMissing: true,
         });
-        if (!r.skipped) templateFlash = " · 已自动建 Sheet 模板";
-      } catch (e) { console.warn("[auto-template]", e.message); }
+        if (!r.skipped) templateFlash = " · 已自动建关键字 Sheet 模板";
+      } catch (e) { console.warn("[auto-template keyword]", e.message); }
+    }
+    // titleSheet 自动建模板
+    if (updated.titleSheet && updated.titleSheet.spreadsheetId && updated.titleSheet.sheetName) {
+      try {
+        const r = await sheetTemplate.ensureTemplate({
+          spreadsheetId: updated.titleSheet.spreadsheetId,
+          sheetName: updated.titleSheet.sheetName,
+          type: "title",
+          dept: name,
+          onlyIfMissing: true,
+        });
+        if (!r.skipped) templateFlash += " · 已自动建群名变更 Sheet 模板";
+      } catch (e) { console.warn("[auto-template title]", e.message); }
     }
     // 保存后自动重启 (若进程在跑)
     await restartDept(name);
