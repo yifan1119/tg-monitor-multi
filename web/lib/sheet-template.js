@@ -47,15 +47,21 @@ const TEMPLATES = {
   keyword: {
     title: (ctx) => `关键字命中记录 — ${ctx.dept || "部门"}`,
     headers: ["编号", "来源群", "发送人", "命中关键词", "消息内容", "登记时间"],
+    // 显式列宽 (像素), 跟 headers 等长
+    columnWidths: [70, 220, 160, 130, 480, 170],
+    // 消息内容列开 word wrap
+    wrapColumns: [4],
     // baseline: insertRowAt5 — 数据从第 5 行开始, 1/2/3/4 行给标题 + 表头 + 空行
     titleRow: 1,
-    blankRows: [2, 3],  // 空行
+    blankRows: [2, 3],
     headerRow: 4,
     dataStartRow: 5,
   },
   title: {
     title: (ctx) => `广告账号改名履历 — ${ctx.dept || "部门"}`,
     headers: ["序号", "原群名", "新群名", "变更时间", "操作人"],
+    columnWidths: [70, 240, 240, 170, 140],
+    wrapColumns: [],
     titleRow: 1,
     blankRows: [2, 3],
     headerRow: 4,
@@ -68,7 +74,8 @@ const TEMPLATES = {
       "对接商务", "对应外事号", "问题情况说明", "初步认定",
       "登记时间", "审查人", "", "闭环详情",
     ],
-    // baseline: insertRowAt3 — 数据从第 3 行, 1 标题, 2 表头
+    columnWidths: [140, 220, 160, 110, 130, 130, 140, 340, 340, 170, 110, 60, 340],
+    wrapColumns: [7, 8, 12], // 问题情况说明 / 初步认定 / 闭环详情
     titleRow: 1,
     blankRows: [],
     headerRow: 2,
@@ -223,11 +230,26 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept }) {
     },
   });
 
-  // 自动列宽 (所有列)
-  requests.push({
-    autoResizeDimensions: {
-      dimensions: { sheetId, dimension: "COLUMNS", startIndex: 0, endIndex: colCount },
-    },
+  // 显式列宽 (每列单独设, 比 autoResize 更可控)
+  (tmpl.columnWidths || []).forEach((w, idx) => {
+    requests.push({
+      updateDimensionProperties: {
+        range: { sheetId, dimension: "COLUMNS", startIndex: idx, endIndex: idx + 1 },
+        properties: { pixelSize: w },
+        fields: "pixelSize",
+      },
+    });
+  });
+
+  // 内容列开 word wrap (长文本自动换行, 不会挤一起也不会被截断)
+  (tmpl.wrapColumns || []).forEach((col) => {
+    requests.push({
+      repeatCell: {
+        range: { sheetId, startRowIndex: tmpl.dataStartRow - 1, startColumnIndex: col, endColumnIndex: col + 1 },
+        cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP" } },
+        fields: "userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment",
+      },
+    });
   });
 
   await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
