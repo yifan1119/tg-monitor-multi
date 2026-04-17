@@ -988,6 +988,18 @@ app.get("/api/sheet-tabs", async (req, res) => {
   res.json(await connectionTester.listSheetTabs({ spreadsheetId: req.query.spreadsheetId }));
 });
 
+// 初始化 Sheet 模板 (自动建分页 + 表头 + 斑马纹 + 冻结)
+const sheetTemplate = require("./lib/sheet-template");
+app.post("/api/sheet-template/init", async (req, res) => {
+  const { spreadsheetId, sheetName, type, dept } = req.body || {};
+  try {
+    const r = await sheetTemplate.ensureTemplate({ spreadsheetId, sheetName, type, dept });
+    res.json(r);
+  } catch (e) {
+    res.json({ ok: false, error: e.message });
+  }
+});
+
 // ─── 升级 / 回滚 ─────────────────────────────
 const updateManager = require("./lib/update-manager");
 

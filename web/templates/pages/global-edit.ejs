@@ -336,10 +336,30 @@
         });
       </script>
     </div>
-    <div style="display: flex; gap: 0.5rem; align-items: center;">
-      <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="testSheetWrite()">🧪 测试 Sheet 写入</button>
+    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+      <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="testSheetWrite()">🧪 测试写入</button>
+      <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;color:var(--accent);border-color:var(--accent);" onclick="initSheetTemplateG()">⚡ 初始化模板</button>
       <span id="sheet-test-result" style="font-size:0.78rem;color:var(--text-dim);"></span>
     </div>
+    <script>
+      async function initSheetTemplateG() {
+        const out = document.getElementById("sheet-test-result");
+        const spreadsheetId = document.getElementById("fld-spreadsheetId").value.trim();
+        const sheetName = document.getElementById("fld-sheetName").value.trim();
+        if (!spreadsheetId || !sheetName) { out.innerHTML = '<span style="color:var(--red);">先填 ID + 分页</span>'; return; }
+        if (!confirm('⚡ 初始化审查报告模板 "' + sheetName + '"?')) return;
+        out.innerHTML = '初始化中...';
+        try {
+          const r = await fetch("/api/sheet-template/init", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ spreadsheetId, sheetName, type: "review" }),
+          }).then(r => r.json());
+          if (r.ok) {
+            out.innerHTML = '<span style="color:var(--green);">✓ ' + (r.created ? '已建分页' : '已重设模板') + ' (' + r.headers.length + ' 列) · ' + r.spreadsheetTitle + '</span>';
+          } else { out.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>'; }
+        } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
+      }
+    </script>
     <script>
       async function testSheetWrite() {
         const out = document.getElementById("sheet-test-result");
