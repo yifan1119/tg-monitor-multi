@@ -504,10 +504,32 @@ async function handleMessage(message) {
   const dedupeKey = `${peerId}:${msgId}`;
   if (dedupe.has(dedupeKey)) return;
 
-  const sender = await message.getSender().catch(() => null);
-  const operatorName =
-    [sender?.firstName, sender?.lastName].filter(Boolean).join(" ") ||
-    sender?.username || "UNKNOWN";
+  // 提取操作人名字 — 多条 fallback 路径
+  let operatorName = "UNKNOWN";
+  try {
+    const sender = await message.getSender().catch(() => null);
+    if (sender) {
+      operatorName =
+        [sender.firstName, sender.lastName].filter(Boolean).join(" ") ||
+        sender.username ||
+        sender.title ||  // channel (匿名管理员) 会返回 channel, title 是群名
+        "UNKNOWN";
+    }
+    // 还是 UNKNOWN? 试 message.fromId
+    if (operatorName === "UNKNOWN" && message.fromId?.userId) {
+      try {
+        const entity = await client.getEntity(message.fromId).catch(() => null);
+        if (entity) {
+          operatorName =
+            [entity.firstName, entity.lastName].filter(Boolean).join(" ") ||
+            entity.username ||
+            operatorName;
+        }
+      } catch {}
+    }
+    // 还是 UNKNOWN → 可能是匿名管理员
+    if (operatorName === "UNKNOWN") operatorName = "匿名管理员";
+  } catch {}
 
   // 分支 A: 群名变更事件 (action 类型)
   const eventTitle = extractTitleChange(message);
