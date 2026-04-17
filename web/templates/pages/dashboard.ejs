@@ -172,32 +172,57 @@
   <% } %>
 
   <% if (procs.length > 0) { %>
+    <%
+      const KIND_LABEL = {
+        "worker": "部门监控",
+        "review-report-writer": "审查报告汇总",
+        "title-sheet-writer": "群名变更汇总",
+        "listener": "消息监听",
+        "system-events": "系统事件",
+        "sheet-writer": "写表服务",
+        "unknown": "网页后台",
+      };
+      const STATUS_LABEL = {
+        "online": "运行中",
+        "stopped": "已停止",
+        "errored": "出错",
+        "waiting restart": "启动失败 (重试中)",
+        "launching": "启动中",
+        "one-launch-status": "启动中",
+      };
+      const DEPT_LABEL = d => d === "_global" ? "全局" : d;
+      const NAME_LABEL = p => {
+        if (p.name === "tg-monitor-web") return "网页后台";
+        if (p.kind === "worker") return `${p.dept} 部门监控`;
+        if (p.kind === "review-report-writer") return "审查报告汇总";
+        if (p.kind === "title-sheet-writer") return "群名变更汇总";
+        return p.name;
+      };
+    %>
     <div class="panel">
-      <div class="panel-title">PM2 进程状态 (<%= procs.length %>)</div>
+      <div class="panel-title">运行中的服务 (<%= procs.length %> 个)</div>
       <div style="overflow-x: auto;">
         <table>
           <thead>
             <tr>
-              <th>进程</th>
-              <th>部门</th>
-              <th>类型</th>
+              <th>服务</th>
+              <th>归属</th>
               <th>状态</th>
               <th>CPU</th>
               <th>内存</th>
-              <th>重启</th>
-              <th>执行时间</th>
+              <th>已重启</th>
+              <th>已运行</th>
             </tr>
           </thead>
           <tbody>
             <% procs.forEach(p => { %>
               <tr>
-                <td><strong><%= p.name %></strong></td>
-                <td><%= p.dept %></td>
-                <td><%= p.kind %></td>
-                <td class="status-<%= p.status %>">● <%= p.status %></td>
+                <td><strong><%= NAME_LABEL(p) %></strong><div style="color:var(--text-dim);font-size:0.7rem;"><%= p.name %></div></td>
+                <td><%= DEPT_LABEL(p.dept) %></td>
+                <td class="status-<%= p.status %>">● <%= STATUS_LABEL[p.status] || p.status %></td>
                 <td><%= p.cpu.toFixed(1) %>%</td>
                 <td><%= p.mem %> MB</td>
-                <td><%= p.restarts %></td>
+                <td><%= p.restarts %> 次</td>
                 <td><%= p.uptime %></td>
               </tr>
             <% }); %>
