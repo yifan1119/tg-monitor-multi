@@ -644,24 +644,23 @@ app.get("/logs/:name",           placeholder("部门日志", "单部门 pm2 logs
 const CRON_MARKER = "# tg-monitor-multi healthcheck";
 
 function readHealthcheckStatus() {
-  const { execFileSync } = require("child_process");
+  // v0.4.2: 改读 system.json 的 healthcheckEnabled (Web 内置 setInterval, 不再用 crontab)
   let enabled = false;
-  let cronLine = "";
   try {
-    const out = execFileSync("crontab", ["-l"], { stdio: ["ignore", "pipe", "ignore"] }).toString();
-    const line = out.split("\n").find(l => l.includes(CRON_MARKER));
-    if (line) {
-      enabled = true;
-      cronLine = line.trim();
-    }
-  } catch { /* crontab 可能不存在 */ }
+    const sys = JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8"));
+    enabled = Boolean(sys.healthcheckEnabled);
+  } catch {}
   let logTail = "";
   const logPath = path.join(ROOT, ".healthcheck", "healthcheck.log");
   if (fs.existsSync(logPath)) {
     const content = fs.readFileSync(logPath, "utf8").trim();
     logTail = content.split("\n").slice(-5).join("\n");
   }
-  return { enabled, cronLine, logTail };
+  return {
+    enabled,
+    cronLine: enabled ? "Web 内置 5 分钟定时器 (Docker 友好)" : "",
+    logTail,
+  };
 }
 
 function readBackupsSummary() {
@@ -1001,28 +1000,23 @@ app.post("/settings/rollback/:ts", async (req, res) => {
   }
 });
 
-// ─── Healthcheck 启用 / 停用 ───────────────────
-function runHealthcheckInstall(arg) {
-  return new Promise((resolve, reject) => {
-    const script = path.join(ROOT, "scripts", "install-healthcheck.sh");
-    execFile("bash", [script, arg], { cwd: ROOT }, (err, stdout, stderr) => {
-      if (err) return reject(new Error(stderr || err.message));
-      resolve(stdout);
-    });
-  });
-}
+// ─── Healthcheck (内置 setInterval, Docker 友好) ─────
+const internalHealthcheck = require("./lib/internal-healthcheck");
+
 app.post("/settings/healthcheck/install", async (_req, res) => {
   try {
-    await runHealthcheckInstall("install");
-    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已启用 (每 5 分钟)")}`);
+    internalHealthcheck.setEnabled(true);
+    internalHealthcheck.start();
+    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck 已启用 (Web 内置, 5 分钟扫一次)")}`);
   } catch (e) {
     res.redirect(`/settings?error=${encodeURIComponent(`启用失败: ${e.message}`)}`);
   }
 });
 app.post("/settings/healthcheck/remove", async (_req, res) => {
   try {
-    await runHealthcheckInstall("--remove");
-    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已停用")}`);
+    internalHealthcheck.setEnabled(false);
+    internalHealthcheck.stop();
+    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck 已停用")}`);
   } catch (e) {
     res.redirect(`/settings?error=${encodeURIComponent(`停用失败: ${e.message}`)}`);
   }
@@ -1050,6 +1044,9 @@ app.listen(PORT, () => {
     console.log("║  env:    DOCKER (tg-* 进程由本 Web 的同 pm2 daemon 管)");
   }
   console.log("╚════════════════════════════════════════════════════════");
+
+  // 启动时若 healthcheckEnabled=true, 自动启动内置健康检查定时器
+  internalHealthcheck.bootstrap();
 
   // 启动时: 先重生 ecosystem (对齐 depts/ + global/ 的最新状态), 再 pm2 start
   // (让容器重启 / 代码升级后, 既有部门进程自动拉起, 且配置跟 depts/ 目录真实状态一致)
