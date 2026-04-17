@@ -1,73 +1,52 @@
 <div class="page-header">
   <div>
     <div class="page-title">Sheet 表头说明</div>
-    <div class="page-subtitle">想改表头? 直接去 Google Sheet 改. worker 会按表头名自动识别写入.</div>
+    <div class="page-subtitle">直接在 Google Sheet 改表头即可. 系统按常见写法<strong style="color: var(--accent);">自动识别</strong>.</div>
   </div>
   <div><a href="/settings" class="btn ghost">返回设置</a></div>
 </div>
 
 <div class="panel" style="background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent);">
-  <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.4rem;">ℹ 怎么改表头</div>
+  <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.4rem;">ℹ 怎么用</div>
   <div style="font-size: 0.9rem; color: var(--text-1); line-height: 1.9;">
     1. 打开你的 Google Sheet<br>
-    2. 直接编辑**第 2 行**的表头单元格 (比如把"编号"改成"序号", 或调顺序/删列)<br>
-    3. 系统下次写表时会<strong style="color: var(--green);">自动识别</strong>新表头 → 按 60 秒内生效<br>
-    <br>
-    <strong style="color: var(--yellow);">⚠ 注意</strong>:
-    <ul style="margin: 0.3rem 0 0 1.25rem; padding: 0;">
-      <li>表头名必须在下面"支持列表"里 (不然识别不了, 该列不会被写值)</li>
-      <li>可以增列/删列/换位置, 系统按当前表头顺序填</li>
-      <li>列宽 / 斑马纹 等样式也可以在 Sheet 里自己调</li>
-    </ul>
+    2. 直接改<strong>第 2 行</strong>表头单元格, 随便写 — 例:<br>
+    <code style="color:var(--accent);">"编号"</code> / <code style="color:var(--accent);">"流水号"</code> / <code style="color:var(--accent);">"#"</code> 都识别为<strong>序号</strong><br>
+    <code style="color:var(--accent);">"发送人"</code> / <code style="color:var(--accent);">"操作者"</code> / <code style="color:var(--accent);">"谁"</code> / <code style="color:var(--accent);">"sender"</code> 都识别为<strong>发送人</strong><br>
+    3. 60 秒内下次写表生效
   </div>
 </div>
 
-<% const FIELD_HEADERS = {
-  "serialNo": ["编号", "序号", "序號", "ID"],
-  "sourceGroup": ["来源群", "来源", "群名", "所在群"],
-  "sourceGroupId": ["群ID", "群id", "来源群ID"],
-  "senderName": ["发送人", "操作人", "用户", "发言人", "审查人"],
-  "keyword": ["命中关键词", "关键词", "关键字", "命中"],
-  "messageContent": ["消息内容", "内容", "消息", "详情", "原文"],
-  "createdAt": ["登记时间", "时间", "记录时间", "变更时间", "改名时间"],
-  "messageDate": ["消息时间", "发送时间"],
-  "messageId": ["消息ID", "消息id"],
-  "oldTitle": ["原群名", "旧群名", "原名", "改前"],
-  "newTitle": ["新群名", "新名", "改后"],
-}; %>
-
 <div class="panel">
-  <div class="panel-title">支持的表头名 (任选一个填到 Sheet 第 2 行)</div>
+  <div class="panel-title">系统能识别的数据字段 + 常见写法</div>
   <table>
     <thead>
-      <tr>
-        <th style="width: 30%;">数据字段</th>
-        <th>可用表头名 (任选其一)</th>
-      </tr>
+      <tr><th style="width: 20%;">数据字段</th><th style="width: 30%;">含义</th><th>常见写法 (随便选一种或自己写)</th></tr>
     </thead>
     <tbody>
-      <% Object.entries(FIELD_HEADERS).forEach(([field, headers]) => { %>
-        <tr>
-          <td><code style="color: var(--accent);"><%= field %></code></td>
-          <td>
-            <% headers.forEach(h => { %>
-              <code style="background: rgba(0,230,255,0.08); padding: 0.1rem 0.5rem; margin: 0.1rem; border-radius: 10px; font-size: 0.8rem;"><%= h %></code>
-            <% }); %>
-          </td>
-        </tr>
-      <% }); %>
+      <tr><td><code style="color: var(--accent);">serialNo</code></td><td>自动编号</td><td>编号 / 序号 / 流水号 / ID / # / No.</td></tr>
+      <tr><td><code style="color: var(--accent);">sourceGroup</code></td><td>来源群名</td><td>来源群 / 所在群 / 群名 / 客户群 / Source / Chat</td></tr>
+      <tr><td><code style="color: var(--accent);">sourceGroupId</code></td><td>来源群 ID</td><td>群ID / 来源群ID / Chat ID</td></tr>
+      <tr><td><code style="color: var(--accent);">senderName</code></td><td>发送人/操作人</td><td>发送人 / 操作人 / 操作者 / 用户 / 审查人 / 执行人 / 谁 / Sender / User</td></tr>
+      <tr><td><code style="color: var(--accent);">keyword</code></td><td>命中关键词</td><td>关键词 / 关键字 / 触发词 / 命中 / Keyword</td></tr>
+      <tr><td><code style="color: var(--accent);">messageContent</code></td><td>消息内容</td><td>消息内容 / 内容 / 正文 / 详情 / 原文 / Content / Text / Body</td></tr>
+      <tr><td><code style="color: var(--accent);">createdAt</code></td><td>登记时间 (系统当下)</td><td>登记时间 / 记录时间 / 时间 / 变更时间 / 创建时间 / Time / Date / Timestamp</td></tr>
+      <tr><td><code style="color: var(--accent);">messageDate</code></td><td>消息实际时间 (TG)</td><td>消息时间 / 发送时间 / 发言时间 / Message Time / Send Date</td></tr>
+      <tr><td><code style="color: var(--accent);">messageId</code></td><td>TG 消息 ID</td><td>消息ID / Msg ID / Message ID</td></tr>
+      <tr><td><code style="color: var(--accent);">oldTitle</code></td><td>原群名 (改名前)</td><td>原群名 / 旧群名 / 原名 / 改前 / Previous Title / Old Name</td></tr>
+      <tr><td><code style="color: var(--accent);">newTitle</code></td><td>新群名 (改名后)</td><td>新群名 / 新名 / 改后 / 改为 / 变更后 / New Title</td></tr>
     </tbody>
   </table>
+  <div style="margin-top: 0.8rem; padding: 0.6rem; background: rgba(255, 201, 64, 0.06); border-left: 3px solid var(--yellow); font-size: 0.8rem; color: var(--text-1);">
+    ⚠ 如果你写的表头<strong>完全没匹配上任何模式</strong> (例如"xyz"这种), 该列会一直是空的. 表头有任何"群/时间/人/内容/关键"等词就能猜到.
+  </div>
 </div>
 
 <div class="panel">
-  <div class="panel-title">默认表头 (新建部门时自动套)</div>
+  <div class="panel-title">默认表头 (新建部门自动套)</div>
   <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.8;">
     <strong>关键字命中 Sheet</strong>: 编号 / 来源群 / 发送人 / 命中关键词 / 消息内容 / 登记时间<br>
     <strong>群名变更 Sheet</strong>: 序号 / 原群名 / 新群名 / 变更时间 / 操作人<br>
     <strong>审查报告总表</strong>: 编号 / 外部广告对接群 / 产品所属公司 / 广告类型 / 广告主 / 对接商务 / 对应外事号 / 问题情况说明 / 初步认定 / 登记时间 / 审查人 / (空) / 闭环详情
-    <div style="margin-top: 0.8rem; color: var(--text-dim); font-size: 0.8rem;">
-      审查报告总表固定结构 (baseline 耦合), 不建议改列顺序. 改表头名 OK.
-    </div>
   </div>
 </div>

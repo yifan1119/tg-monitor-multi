@@ -228,33 +228,48 @@ async function getSheetMeta(spreadsheetId, targetSheetName) {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 表头 → 字段自动映射 (用户在 Sheet 里改表头, 系统识别)
+// 表头 → 字段智能识别 (用户 Sheet 里随便写什么表头, 按模式猜意图)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const HEADER_TO_FIELD = {
-  // 序号
-  "编号": "serialNo", "序号": "serialNo", "序號": "serialNo", "id": "serialNo", "ID": "serialNo",
-  // 来源群
-  "来源群": "sourceGroup", "来源": "sourceGroup", "群名": "sourceGroup", "所在群": "sourceGroup",
-  // 群 ID
-  "群ID": "sourceGroupId", "群id": "sourceGroupId", "来源群ID": "sourceGroupId",
-  // 发送人 / 操作人
-  "发送人": "senderName", "操作人": "senderName", "用户": "senderName", "发言人": "senderName",
-  "审查人": "senderName",
-  // 关键词
-  "命中关键词": "keyword", "关键词": "keyword", "关键字": "keyword", "命中": "keyword",
-  // 消息内容
-  "消息内容": "messageContent", "内容": "messageContent", "消息": "messageContent",
-  "详情": "messageContent", "原文": "messageContent",
-  // 时间
-  "登记时间": "createdAt", "时间": "createdAt", "记录时间": "createdAt",
-  "变更时间": "createdAt", "改名时间": "createdAt",
-  "消息时间": "messageDate", "发送时间": "messageDate",
-  // 消息 ID
-  "消息ID": "messageId", "消息id": "messageId",
-  // 群名变更
-  "原群名": "oldTitle", "旧群名": "oldTitle", "原名": "oldTitle", "改前": "oldTitle",
-  "新群名": "newTitle", "新名": "newTitle", "改后": "newTitle",
-};
+// 规则顺序 = 优先级 (更具体的规则放前面, 通用的放后面)
+const FIELD_RULES = [
+  // ── ID 类 (必须在通用"id"之前) ──
+  { field: "sourceGroupId",   re: /(群|来源|source|chat|group).{0,3}(id)|groupid/i },
+  { field: "messageId",       re: /(消息|msg|message).{0,3}id/i },
+
+  // ── 时间细分 (发送时间 / 消息时间 优先于通用时间) ──
+  { field: "messageDate",     re: /(消息|发送|发言|发出|message|send|sent).{0,3}(时间|日期|time|date)/i },
+
+  // ── 群名变更 ──
+  { field: "oldTitle",        re: /(原|旧|改前|之前|before|prev|previous|old).{0,3}(群名|名称|标题|名字|title|name)|^原群|^旧群|^(原名|旧名|改前)$/i },
+  { field: "newTitle",        re: /(新|改后|之后|after|current|new).{0,3}(群名|名称|标题|名字|title|name)|^新群|变更[后为]|改为|^(新名|改后)$/i },
+
+  // ── 关键字 ──
+  { field: "keyword",         re: /(命中)?关键[字词]|触发词|匹配|命中|keyword|hit|matched?/i },
+
+  // ── 消息内容 ──
+  { field: "messageContent",  re: /(消息|原|发言)?(内容|正文|详情|原文|文本)|(message|msg).{0,3}(content|text|body)|content|text|body/i },
+
+  // ── 人员 ──
+  { field: "senderName",      re: /(发送|发言|操作|执行|审查|登记|创建|create)?(人|者|员|方|用户|user)|operator|sender|author|by$|谁|operator/i },
+
+  // ── 来源群 ──
+  { field: "sourceGroup",     re: /(来源|所在|原|出处)?(群|频道|会话|chat|channel|group)(名|名称|title|name)?|source|来自/i },
+
+  // ── 登记时间 (通用时间, 放最后) ──
+  { field: "createdAt",       re: /(登记|记录|变更|改名|创建|发生|create|record|change|update|register)?(时间|日期|时刻|time|date|at$|when|timestamp)|datetime/i },
+
+  // ── 序号 (通用, 放最后) ──
+  { field: "serialNo",        re: /^(编号|序号|序號|流水号?|序列号?|id|#|no\.?|number|index|idx)$|(编|序|流水)号/i },
+];
+
+function matchField(header) {
+  const h = String(header || "").trim();
+  if (!h) return null;
+  for (const rule of FIELD_RULES) {
+    if (rule.re.test(h)) return rule.field;
+  }
+  return null; // 识别不了, 该列不写值
+}
 
 // 读 Sheet 实际表头 → 自动识别每列 field (60s 缓存)
 const columnsCache = new Map(); // `${spreadsheetId}::${sheetName}` → {columns, at}
@@ -275,7 +290,7 @@ async function getColumnsFromSheet(spreadsheetId, sheetName) {
     const hStr = String(h || "").trim();
     return {
       header: hStr,
-      field: HEADER_TO_FIELD[hStr] || null, // null = 未识别, 写 "" 占位
+      field: matchField(hStr), // null = 没识别出来
     };
   });
   columnsCache.set(key, { columns, at: Date.now() });
