@@ -1,159 +1,73 @@
 <div class="page-header">
   <div>
-    <div class="page-title">Sheet 模板管理</div>
-    <div class="page-subtitle">自由增删/排列 Sheet 列. 每列指定: 表头名 + 数据字段 + 列宽 + 是否换行</div>
+    <div class="page-title">Sheet 表头说明</div>
+    <div class="page-subtitle">想改表头? 直接去 Google Sheet 改. worker 会按表头名自动识别写入.</div>
   </div>
   <div><a href="/settings" class="btn ghost">返回设置</a></div>
 </div>
 
-<% if (locals.flash) { %>
-  <div class="panel" style="border-left: 3px solid var(--green); background: rgba(0, 255, 149, 0.06);">
-    <div style="color: var(--green); font-weight: 700; font-size: 0.85rem;">✓ <%= flash %></div>
-  </div>
-<% } %>
-<% if (locals.error) { %>
-  <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
-    <div style="color: var(--red); font-weight: 700; font-size: 0.85rem;">⚠ <%= error %></div>
-  </div>
-<% } %>
-
 <div class="panel" style="background: rgba(0, 230, 255, 0.04); border-left: 3px solid var(--accent);">
-  <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.4rem;">ℹ 怎么用</div>
-  <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.8;">
-    每一列 = 一个 <strong>数据字段 (field)</strong> + <strong>你看到的表头名 (header)</strong> + <strong>列宽</strong> + <strong>是否换行</strong>.<br>
-    - 增列: 点「+ 新增列」, 选 field (能填的数据), 填表头名.<br>
-    - 删列: 每列右上角 ✕.<br>
-    - 排序: ↑ / ↓ 按钮.<br>
-    - 改了保存之后, <strong>已有 Sheet 不会自动改</strong>, 要到部门编辑页点「⚡ 初始化模板」或保存 config 才会重新应用.<br>
-    标题支持 <code>{dept}</code> 占位符 (会替换成部门代号).
+  <div style="color: var(--accent); font-weight: 700; margin-bottom: 0.4rem;">ℹ 怎么改表头</div>
+  <div style="font-size: 0.9rem; color: var(--text-1); line-height: 1.9;">
+    1. 打开你的 Google Sheet<br>
+    2. 直接编辑**第 2 行**的表头单元格 (比如把"编号"改成"序号", 或调顺序/删列)<br>
+    3. 系统下次写表时会<strong style="color: var(--green);">自动识别</strong>新表头 → 按 60 秒内生效<br>
+    <br>
+    <strong style="color: var(--yellow);">⚠ 注意</strong>:
+    <ul style="margin: 0.3rem 0 0 1.25rem; padding: 0;">
+      <li>表头名必须在下面"支持列表"里 (不然识别不了, 该列不会被写值)</li>
+      <li>可以增列/删列/换位置, 系统按当前表头顺序填</li>
+      <li>列宽 / 斑马纹 等样式也可以在 Sheet 里自己调</li>
+    </ul>
   </div>
 </div>
 
-<% templates.forEach(t => { %>
-  <div class="panel" id="panel-<%= t.type %>">
-    <div class="panel-title">
-      <%= t.label %> · <code>type=<%= t.type %></code>
-      <% if (t.isCustomized) { %>
-        <span style="color: var(--accent); font-size: 0.7rem; margin-left: 0.5rem;">(已自定义)</span>
-      <% } else { %>
-        <span style="color: var(--text-dim); font-size: 0.7rem; margin-left: 0.5rem;">(默认)</span>
-      <% } %>
-      <% if (t.readOnly) { %>
-        <span style="color: var(--yellow); font-size: 0.7rem; margin-left: 0.5rem;">(只读 — baseline 耦合, 不可改)</span>
-      <% } %>
+<% const FIELD_HEADERS = {
+  "serialNo": ["编号", "序号", "序號", "ID"],
+  "sourceGroup": ["来源群", "来源", "群名", "所在群"],
+  "sourceGroupId": ["群ID", "群id", "来源群ID"],
+  "senderName": ["发送人", "操作人", "用户", "发言人", "审查人"],
+  "keyword": ["命中关键词", "关键词", "关键字", "命中"],
+  "messageContent": ["消息内容", "内容", "消息", "详情", "原文"],
+  "createdAt": ["登记时间", "时间", "记录时间", "变更时间", "改名时间"],
+  "messageDate": ["消息时间", "发送时间"],
+  "messageId": ["消息ID", "消息id"],
+  "oldTitle": ["原群名", "旧群名", "原名", "改前"],
+  "newTitle": ["新群名", "新名", "改后"],
+}; %>
+
+<div class="panel">
+  <div class="panel-title">支持的表头名 (任选一个填到 Sheet 第 2 行)</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 30%;">数据字段</th>
+        <th>可用表头名 (任选其一)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% Object.entries(FIELD_HEADERS).forEach(([field, headers]) => { %>
+        <tr>
+          <td><code style="color: var(--accent);"><%= field %></code></td>
+          <td>
+            <% headers.forEach(h => { %>
+              <code style="background: rgba(0,230,255,0.08); padding: 0.1rem 0.5rem; margin: 0.1rem; border-radius: 10px; font-size: 0.8rem;"><%= h %></code>
+            <% }); %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<div class="panel">
+  <div class="panel-title">默认表头 (新建部门时自动套)</div>
+  <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.8;">
+    <strong>关键字命中 Sheet</strong>: 编号 / 来源群 / 发送人 / 命中关键词 / 消息内容 / 登记时间<br>
+    <strong>群名变更 Sheet</strong>: 序号 / 原群名 / 新群名 / 变更时间 / 操作人<br>
+    <strong>审查报告总表</strong>: 编号 / 外部广告对接群 / 产品所属公司 / 广告类型 / 广告主 / 对接商务 / 对应外事号 / 问题情况说明 / 初步认定 / 登记时间 / 审查人 / (空) / 闭环详情
+    <div style="margin-top: 0.8rem; color: var(--text-dim); font-size: 0.8rem;">
+      审查报告总表固定结构 (baseline 耦合), 不建议改列顺序. 改表头名 OK.
     </div>
-
-    <% if (t.readOnly) { %>
-      <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0.8rem;">
-        此模板跟 baseline <code>review_report_writer.js</code> 的 parsing 逻辑紧耦合 (按编号/外部群/公司等固定位置写), 改列会让写表错位. 暂不开放自定义.
-      </div>
-      <div style="background: rgba(7,10,21,0.4); padding: 0.8rem; border-radius: 6px; font-size: 0.8rem;">
-        <strong>当前列:</strong>
-        <ol style="margin: 0.4rem 0 0 1.2rem;">
-          <% t.columns.forEach(c => { %>
-            <li><code><%= c.header %></code> ← <code><%= c.field %></code> · <%= c.width %>px<%= c.wrap ? ' · wrap' : '' %></li>
-          <% }); %>
-        </ol>
-      </div>
-    <% } else { %>
-
-      <form action="/settings/sheet-templates/<%= t.type %>" method="POST" id="form-<%= t.type %>" onsubmit="return prepareSubmit('<%= t.type %>')">
-        <div class="form-group">
-          <label>标题 (第 1 行)</label>
-          <input type="text" name="title_template" value="<%= t.currentTitleTemplate %>" placeholder="默认: <%= t.defaultTitleTemplate %>">
-          <div class="hint">可用 <code>{dept}</code> 占位. 当前显示: <strong><%= t.currentTitle %></strong></div>
-        </div>
-
-        <div class="form-group">
-          <label>列配置</label>
-          <div id="cols-<%= t.type %>"></div>
-          <input type="hidden" name="columns_json" id="cols-json-<%= t.type %>">
-          <div style="margin-top: 0.6rem; display: flex; gap: 0.5rem; align-items: center;">
-            <button type="button" class="btn ghost" style="padding:0.3rem 0.8rem; font-size:0.75rem;" onclick="addCol('<%= t.type %>')">+ 新增列</button>
-            <span id="cols-count-<%= t.type %>" style="color: var(--text-dim); font-size: 0.75rem;"></span>
-          </div>
-        </div>
-
-        <div style="display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem;">
-          <form action="/settings/sheet-templates/<%= t.type %>/reset" method="POST" style="display:inline;"
-            onsubmit="event.stopPropagation(); return confirm('重置 <%= t.type %> 为默认?');">
-            <button type="submit" class="btn ghost" style="padding:0.35rem 0.8rem;font-size:0.75rem;color:var(--text-dim);" formaction="/settings/sheet-templates/<%= t.type %>/reset">重置默认</button>
-          </form>
-          <button type="submit" class="btn" style="padding:0.35rem 0.9rem;font-size:0.8rem;">保存</button>
-        </div>
-      </form>
-
-      <script>
-        (function() {
-          const TYPE = <%- JSON.stringify(t.type) %>;
-          const AVAILABLE = <%- JSON.stringify(t.availableFields) %>;
-          let COLS = <%- JSON.stringify(t.columns) %>;
-
-          function render() {
-            const container = document.getElementById("cols-" + TYPE);
-            const count = document.getElementById("cols-count-" + TYPE);
-            if (!COLS.length) {
-              container.innerHTML = '<div style="color:var(--text-dim);font-size:0.85rem;padding:0.8rem;">(没列, 点新增)</div>';
-              count.textContent = "0 列";
-              return;
-            }
-            container.innerHTML = COLS.map((c, i) => {
-              const availableOpts = Object.entries(AVAILABLE).map(([k, desc]) =>
-                '<option value="' + k + '"' + (k === c.field ? ' selected' : '') + '>' + k + ' — ' + desc + '</option>'
-              ).join('');
-              return `
-                <div style="display:grid;grid-template-columns:26px 2fr 2.5fr 70px 55px 80px;gap:0.4rem;align-items:center;padding:0.4rem;background:rgba(7,10,21,0.4);border:1px solid var(--panel-border);border-radius:6px;margin-bottom:0.35rem;">
-                  <span style="color:var(--text-dim);font-size:0.7rem;text-align:center;font-family:monospace;">${i + 1}</span>
-                  <input type="text" value="${String(c.header || '').replace(/"/g, '&quot;')}" placeholder="表头名" oninput="updCol(TYPE, ${i}, 'header', this.value)" style="padding:0.3rem 0.5rem;font-size:0.8rem;">
-                  <select onchange="updCol(TYPE, ${i}, 'field', this.value)" style="padding:0.3rem 0.4rem;font-size:0.75rem;">
-                    ${availableOpts}
-                  </select>
-                  <input type="number" value="${c.width || 120}" oninput="updCol(TYPE, ${i}, 'width', Number(this.value))" style="padding:0.3rem 0.5rem;font-size:0.75rem;" title="列宽(像素)">
-                  <label style="font-size:0.7rem;color:var(--text-dim);display:flex;align-items:center;gap:0.25rem;cursor:pointer;">
-                    <input type="checkbox" ${c.wrap ? 'checked' : ''} onchange="updCol(TYPE, ${i}, 'wrap', this.checked)"> 换行
-                  </label>
-                  <div style="display:flex;gap:0.2rem;justify-content:flex-end;">
-                    <button type="button" onclick="moveCol(TYPE, ${i}, -1)" style="background:none;border:1px solid var(--panel-border);color:var(--text-1);font-size:0.7rem;width:22px;height:22px;cursor:pointer;border-radius:3px;" title="上移">↑</button>
-                    <button type="button" onclick="moveCol(TYPE, ${i}, 1)" style="background:none;border:1px solid var(--panel-border);color:var(--text-1);font-size:0.7rem;width:22px;height:22px;cursor:pointer;border-radius:3px;" title="下移">↓</button>
-                    <button type="button" onclick="delCol(TYPE, ${i})" style="background:none;border:1px solid var(--red);color:var(--red);font-size:0.75rem;width:22px;height:22px;cursor:pointer;border-radius:3px;" title="删除">×</button>
-                  </div>
-                </div>
-              `.replace(/TYPE/g, JSON.stringify(TYPE));
-            }).join('');
-            count.textContent = COLS.length + " 列";
-          }
-
-          window["render_" + TYPE] = render;
-          window["COLS_" + TYPE] = () => COLS;
-          window["setCOLS_" + TYPE] = (c) => { COLS = c; render(); };
-
-          render();
-        })();
-      </script>
-    <% } %>
   </div>
-<% }); %>
-
-<script>
-  function updCol(type, idx, field, val) { const c = window["COLS_" + type](); c[idx][field] = val; window["setCOLS_" + type](c); }
-  function moveCol(type, idx, delta) {
-    const c = window["COLS_" + type]();
-    const target = idx + delta;
-    if (target < 0 || target >= c.length) return;
-    const [removed] = c.splice(idx, 1);
-    c.splice(target, 0, removed);
-    window["setCOLS_" + type](c);
-  }
-  function delCol(type, idx) { const c = window["COLS_" + type](); c.splice(idx, 1); window["setCOLS_" + type](c); }
-  function addCol(type) {
-    const c = window["COLS_" + type]();
-    const firstField = Object.keys(<%- JSON.stringify(templates.reduce((o, t) => (o[t.type] = t.availableFields || {}, o), {})) %>[type])[0] || "";
-    c.push({ header: "新列", field: firstField, width: 150, wrap: false });
-    window["setCOLS_" + type](c);
-  }
-  function prepareSubmit(type) {
-    const c = window["COLS_" + type]();
-    document.getElementById("cols-json-" + type).value = JSON.stringify(c);
-    return true;
-  }
-</script>
+</div>

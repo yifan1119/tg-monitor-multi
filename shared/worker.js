@@ -227,36 +227,59 @@ async function getSheetMeta(spreadsheetId, targetSheetName) {
   return result;
 }
 
-// 读 data/sheet-templates.json 的自定义列 (worker 需要知道列顺序 + field 映射)
-function loadCustomTemplate(type) {
-  try {
-    const p = path.join(ROOT, "data", "sheet-templates.json");
-    if (!fs.existsSync(p)) return null;
-    const all = JSON.parse(fs.readFileSync(p, "utf8"));
-    return all[type] || null;
-  } catch { return null; }
-}
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 表头 → 字段自动映射 (用户在 Sheet 里改表头, 系统识别)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const HEADER_TO_FIELD = {
+  // 序号
+  "编号": "serialNo", "序号": "serialNo", "序號": "serialNo", "id": "serialNo", "ID": "serialNo",
+  // 来源群
+  "来源群": "sourceGroup", "来源": "sourceGroup", "群名": "sourceGroup", "所在群": "sourceGroup",
+  // 群 ID
+  "群ID": "sourceGroupId", "群id": "sourceGroupId", "来源群ID": "sourceGroupId",
+  // 发送人 / 操作人
+  "发送人": "senderName", "操作人": "senderName", "用户": "senderName", "发言人": "senderName",
+  "审查人": "senderName",
+  // 关键词
+  "命中关键词": "keyword", "关键词": "keyword", "关键字": "keyword", "命中": "keyword",
+  // 消息内容
+  "消息内容": "messageContent", "内容": "messageContent", "消息": "messageContent",
+  "详情": "messageContent", "原文": "messageContent",
+  // 时间
+  "登记时间": "createdAt", "时间": "createdAt", "记录时间": "createdAt",
+  "变更时间": "createdAt", "改名时间": "createdAt",
+  "消息时间": "messageDate", "发送时间": "messageDate",
+  // 消息 ID
+  "消息ID": "messageId", "消息id": "messageId",
+  // 群名变更
+  "原群名": "oldTitle", "旧群名": "oldTitle", "原名": "oldTitle", "改前": "oldTitle",
+  "新群名": "newTitle", "新名": "newTitle", "改后": "newTitle",
+};
 
-const DEFAULT_KEYWORD_COLUMNS = [
-  { header: "编号",       field: "serialNo",       width: 70  },
-  { header: "来源群",     field: "sourceGroup",    width: 220 },
-  { header: "发送人",     field: "senderName",     width: 160 },
-  { header: "命中关键词", field: "keyword",        width: 130 },
-  { header: "消息内容",   field: "messageContent", width: 480 },
-  { header: "登记时间",   field: "createdAt",      width: 170 },
-];
-const DEFAULT_TITLE_COLUMNS = [
-  { header: "序号",     field: "serialNo",   width: 70  },
-  { header: "原群名",   field: "oldTitle",   width: 240 },
-  { header: "新群名",   field: "newTitle",   width: 240 },
-  { header: "变更时间", field: "createdAt",  width: 170 },
-  { header: "操作人",   field: "senderName", width: 140 },
-];
+// 读 Sheet 实际表头 → 自动识别每列 field (60s 缓存)
+const columnsCache = new Map(); // `${spreadsheetId}::${sheetName}` → {columns, at}
+const COL_CACHE_TTL = 60 * 1000;
 
-function getColumns(type) {
-  const custom = loadCustomTemplate(type);
-  if (custom && Array.isArray(custom.columns) && custom.columns.length > 0) return custom.columns;
-  return type === "keyword" ? DEFAULT_KEYWORD_COLUMNS : DEFAULT_TITLE_COLUMNS;
+async function getColumnsFromSheet(spreadsheetId, sheetName) {
+  const key = `${spreadsheetId}::${sheetName}`;
+  const hit = columnsCache.get(key);
+  if (hit && Date.now() - hit.at < COL_CACHE_TTL) return hit.columns;
+
+  const { sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
+  // 读表头行 (row 2)
+  const r = await sheets.spreadsheets.values.get({
+    spreadsheetId, range: `${sheetTitle}!A2:Z2`,
+  });
+  const headers = (r.data.values && r.data.values[0]) || [];
+  const columns = headers.map(h => {
+    const hStr = String(h || "").trim();
+    return {
+      header: hStr,
+      field: HEADER_TO_FIELD[hStr] || null, // null = 未识别, 写 "" 占位
+    };
+  });
+  columnsCache.set(key, { columns, at: Date.now() });
+  return columns;
 }
 
 // 把 data 对象按 columns 顺序展开成 row (一个数组)
@@ -280,12 +303,13 @@ function findSerialCol(columns) {
   return columns.findIndex(c => c.field === "serialNo");
 }
 
-// 关键字 Sheet: 根据 columns 动态写
+// 关键字 Sheet: 从 Sheet 实际表头动态识别列
 async function writeKeywordRow(data) {
   const { spreadsheetId, sheetName } = config.keywordSheet || {};
   if (!spreadsheetId || !sheetName) return;
 
-  const columns = getColumns("keyword");
+  const columns = await getColumnsFromSheet(spreadsheetId, sheetName);
+  if (columns.length === 0) { console.warn("keyword Sheet 表头为空, 跳过写入"); return; }
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
   const lastColLetter = colLetter(columns.length - 1);
 
@@ -349,7 +373,8 @@ async function writeTitleChangeRow(data) {
   const { spreadsheetId, sheetName } = config.titleSheet;
   if (!spreadsheetId || !sheetName) return;
 
-  const columns = getColumns("title");
+  const columns = await getColumnsFromSheet(spreadsheetId, sheetName);
+  if (columns.length === 0) { console.warn("title Sheet 表头为空, 跳过写入"); return; }
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
   const lastColLetter = colLetter(columns.length - 1);
 
