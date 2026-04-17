@@ -218,12 +218,24 @@ app.post("/dev/reset-setup", (_req, res) => {
 
 // ─── Dashboard ───────────────────────────────────────
 app.get("/dashboard", async (_req, res) => {
-  const [summary, depts, procs, alerts] = await Promise.all([
-    dataProvider.getSystemSummary(),
+  // 一次性拉 depts + procs + alerts, 避免 getSystemSummary 内再跑一次 listProcesses
+  // (pm2.connect 并发会 race, 一次成功一次超时 → 数据不一致)
+  const [depts, procs, alerts] = await Promise.all([
     dataProvider.listDepartments(),
     dataProvider.listProcesses(),
     dataProvider.listAlerts(),
   ]);
+  // 从已拉到的 procs/depts 计算 summary, 不再二次查 pm2
+  const summary = {
+    version: VERSION,
+    mode: dataProvider.MODE,
+    deptCount: depts.length,
+    procTotal: procs.length,
+    procOnline: procs.filter(p => p.status === "online").length,
+    procOffline: procs.filter(p => p.status !== "online").length,
+    totalHit24h: depts.reduce((a, d) => a + (d.hit24h || 0), 0),
+    sessionBroken: depts.filter(d => !d.sessionOk).length,
+  };
   // 顶部健康摘要卡
   const globalKinds = GLOBAL_KINDS;
   const globalProcsOnline = procs.filter(p => globalKinds.some(k => p.name === `tg-${k}`) && p.status === "online").length;
