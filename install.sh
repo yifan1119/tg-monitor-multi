@@ -30,6 +30,18 @@ cd /tmp 2>/dev/null || cd / || true
 INSTALL_DIR="${INSTALL_DIR:-/opt/tg-monitor-multi}"
 REPO_URL="${REPO_URL:-https://github.com/yifan1119/tg-monitor-multi.git}"
 BRANCH="${BRANCH:-main}"
+
+# 记录 user 是否显式传了 WEB_PORT (区分"默认"和"指定")
+WEB_PORT_EXPLICIT="${WEB_PORT:+1}"
+
+# 若重装且 .env 已存在 WEB_PORT, 默认用那个 (保留原有端口, 避免静默改动)
+# 除非用户显式传了 WEB_PORT 环境变量
+if [[ -z "${WEB_PORT_EXPLICIT:-}" ]] && [[ -f "$INSTALL_DIR/.env" ]]; then
+  EXISTING_PORT=$(grep -E '^WEB_PORT=' "$INSTALL_DIR/.env" 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')
+  if [[ -n "$EXISTING_PORT" ]] && [[ "$EXISTING_PORT" =~ ^[0-9]+$ ]]; then
+    WEB_PORT="$EXISTING_PORT"
+  fi
+fi
 WEB_PORT="${WEB_PORT:-5003}"
 WEB_PORT_AUTO="${WEB_PORT_AUTO:-1}"   # 1=端口被占自动往上找; 0=强制用 WEB_PORT
 
