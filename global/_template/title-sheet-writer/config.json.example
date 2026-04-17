@@ -1,0 +1,18 @@
+{
+  "_comment": "title-sheet-writer — 跨部門群名變更彙總.",
+  "_purpose": "一個『彙總員』TG 號訂閱多個部門的中轉群 (XX-業務審查), 收到群名變更事件時, 根據 routes 寫入對應部門的 Spreadsheet.",
+  "_note": "此進程需要獨立 session.txt. 該 TG 號必須已加入 routes 中所有的中轉群.",
+  "configVersion": 1,
+
+  "backfillIntervalMs": 60000,
+  "backfillLimit": 30,
+
+  "_routes_hint": "key = 要訂閱的中轉群名, value = 該部門的寫入目標 Sheet. 新增部門時在此加一條.",
+  "routes": {
+    "_example-dept-1-审查群": {
+      "instance": "example-dept-1",
+      "spreadsheetId": "1xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "sheetName": "广告明细EX1"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+# title-sheet-writer 的 Telegram StringSession
+# 必須是一個「彙總員」TG 號, 已加入 config.json routes 中所有的中轉群.
+#
+# 取得方式:
+#   1. 填好 .env
+#   2. 跑: node scripts/login-global.js title-sheet-writer
+#   3. 依提示輸入手機號 / 驗證碼 / 2FA
+#
+# ⚠️ 跟部門的 session.txt 一樣敏感, 洩漏 = TG 號被接管

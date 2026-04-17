@@ -36,13 +36,26 @@ TG 業務群 × N (每部門加入的客戶群)
 
 ```
 tg-monitor-multi/
-├── shared/        ← 一份代碼 + 一份 node_modules, 所有部門共用
+├── shared/        ← 一份代碼 + 一份 node_modules, 所有部門 + 全局進程共用
 ├── depts/         ← 每部門只存「差異」(config + env + session + state)
+├── global/        ← 全局進程目錄 (title-sheet-writer / review-report-writer)
 ├── web/           ← Express 管理後台 (讀 PM2 狀態, 改 depts/*/config.json)
 ├── data/          ← Web 用戶資料 + 系統級設置 (非部門級)
-├── scripts/       ← CLI 工具 (新增部門, 登入, 遷移)
-└── docs/          ← 本目錄
+├── scripts/       ← CLI 工具 (新增部門/全局進程, 登入, 健康檢查, 升級回滾)
+├── docs/          ← 本目錄
+└── .backups/      ← update.sh 自動備份 (gitignore, 保留最近 5 個)
 ```
+
+### 全局進程 (對齊 baseline)
+
+baseline 架構下有 2 個跨部門的彙總進程, 各自獨立 TG 號:
+
+| 進程 | 角色 | config 特色 |
+|------|------|-----------|
+| `tg-title-sheet-writer` | 訂閱多部門中轉群, 分流寫各部門 Sheet | `routes: { 群名: { spreadsheetId, sheetName } }` map |
+| `tg-review-report-writer` | 訂閱多部門審查報告群, 彙總寫總表 | `inputChatNames: []` 陣列 + 單一 Sheet |
+
+這 2 個進程**可選** (很多客戶只需要部門進程). 配置複雜度高於部門, Web 介面只做狀態監控 + PM2 控制, 編輯 config 和 TG 登入走 CLI.
 
 ### 為什麼 depts/ 每部門獨立，而不是合併到一個 db
 

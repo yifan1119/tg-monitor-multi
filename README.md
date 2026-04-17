@@ -97,6 +97,33 @@ Setup 建好目錄後，**最後一步要完成 TG 登入**：
 
 每部門配置獨立，互不影響。詳見 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
+### 全局進程（可選）
+
+部門進程處理「自己的群」；全局進程處理「跨部門的彙總」，對齊 baseline 架構：
+
+| 全局進程 | 用途 | 需要 |
+|---------|------|------|
+| `tg-title-sheet-writer` | 跨部門群名變更彙總（訂閱多個中轉群 → 分流寫各部門 Sheet） | 獨立 TG 號 + config 的 `routes` map |
+| `tg-review-report-writer` | 審查報告閉環跟蹤（訂閱多個審查報告群 → 寫總表） | 獨立 TG 號 + config 的 `inputChatNames` 陣列 |
+
+**建立流程**：
+```bash
+# 1. 建目錄
+node scripts/new-global.js title-sheet-writer
+
+# 2. 編輯 config
+vi global/title-sheet-writer/config.json    # 填 routes / spreadsheetId
+
+# 3. TG 登入
+node scripts/login-global.js title-sheet-writer
+
+# 4. 重生 + 啟動
+node scripts/generate-ecosystem.js
+pm2 start ecosystem.config.js --only tg-title-sheet-writer
+```
+
+Web 後台 `/settings` 頁可看狀態 + 控制重啟/啟停。**編輯 config 和 TG 登入目前仍用 CLI**（config 結構較複雜，Web 表單留 v0.3）。
+
 ---
 
 ## 日常運維
@@ -113,6 +140,7 @@ Setup 建好目錄後，**最後一步要完成 TG 登入**：
 | TG 登入 / 重新登入 | `/depts/:name/login` |
 | 刪除部門 | 編輯頁（會搬到 `.trash-<ts>-<name>/`，不立即刪） |
 | 查系統狀態 | `/health` JSON |
+| 系統設置 · 全局進程 · 健康檢查 | `/settings` |
 
 ### 命令列（進階）
 
@@ -126,6 +154,33 @@ node scripts/generate-ecosystem.js
 # 啟動某部門所有進程
 pm2 start ecosystem.config.js --only tg-listener-<name>,tg-system-events-<name>,tg-sheet-writer-<name>
 ```
+
+---
+
+## 健康檢查（可選）
+
+對齊 baseline 架構 — cron 每 5 分鐘掃一次 PM2，非 online 的進程自動 `pm2 restart`。
+
+```bash
+# 啟用
+bash scripts/install-healthcheck.sh
+
+# 看狀態
+bash scripts/install-healthcheck.sh --status
+
+# 停用
+bash scripts/install-healthcheck.sh --remove
+```
+
+或到 Web `/settings` 頁一鍵啟用/停用。
+
+**⚠️ 故意不護 listener**：baseline 設計決策。listener 重啟會掉 TG session，且通常壞了是 session.txt 失效需人工處理，不該自動 restart。健康檢查只護：
+- `tg-system-events-*`
+- `tg-sheet-writer-*`
+- `tg-title-sheet-writer`
+- `tg-review-report-writer`
+
+日誌：`.healthcheck/healthcheck.log`（超過 5MB 自動輪替）。
 
 ---
 

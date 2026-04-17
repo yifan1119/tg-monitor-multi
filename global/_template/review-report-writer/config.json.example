@@ -1,0 +1,25 @@
+{
+  "_comment": "review-report-writer — 審查報告閉環跟蹤.",
+  "_purpose": "一個『觀察員』TG 號訂閱多個部門的審查報告群 (XX-審查報告), 監聽『審查報告』+『閉環處理結果說明』關鍵字, 寫入單一總表作為稽核紀錄.",
+  "_note": "此進程需要獨立 session.txt. 該 TG 號必須已加入 inputChatNames 中所有的審查報告群.",
+  "configVersion": 1,
+
+  "_inputChatNames_hint": "要訂閱的審查報告群名清單. 所有群的事件都寫到同一張 Sheet.",
+  "inputChatNames": [
+    "_example-dept-1-审查报告",
+    "_example-dept-2-审查报告"
+  ],
+
+  "_spreadsheet_hint": "所有部門的審查報告彙總到同一張 Sheet.",
+  "spreadsheetId": "",
+  "sheetName": "审查报告总表",
+
+  "backfillIntervalMs": 60000,
+  "backfillLimit": 30,
+
+  "_keyword_hint": "觸發關鍵字. 訊息含 keyword → 建立一筆記錄; 另一則訊息含 resultKeyword → 關閉該筆記錄 (閉環).",
+  "keyword": "审查报告",
+  "resultKeyword": "闭环处理结果说明",
+
+  "strictMode": true
+}

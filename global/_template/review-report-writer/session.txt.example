@@ -1,0 +1,7 @@
+# review-report-writer 的 Telegram StringSession
+# 必須是一個「觀察員」TG 號, 已加入 config.json inputChatNames 中所有的審查報告群.
+#
+# 取得方式:
+#   1. 填好 .env
+#   2. 跑: node scripts/login-global.js review-report-writer
+#   3. 依提示輸入手機號 / 驗證碼 / 2FA

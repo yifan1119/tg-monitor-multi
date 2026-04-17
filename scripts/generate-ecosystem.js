@@ -20,61 +20,102 @@
 const fs = require("fs");
 const path = require("path");
 const { listDepts } = require("./new-dept");
+const { listGlobals } = require("./new-global");
 
 const ROOT = path.resolve(__dirname, "..");
 const OUT_PATH = path.join(ROOT, "ecosystem.config.js");
 const SHARED_DIR = path.join(ROOT, "shared");
 const DEPTS_DIR = path.join(ROOT, "depts");
+const GLOBAL_DIR = path.join(ROOT, "global");
 
-const PROCESS_KINDS = [
+const DEPT_KINDS = [
   { kind: "listener",      script: "listener.js" },
   { kind: "system-events", script: "system_events.js" },
   { kind: "sheet-writer",  script: "sheet_writer.js" },
 ];
 
-function buildApp(deptName, kind) {
-  const spec = PROCESS_KINDS.find(p => p.kind === kind);
+const GLOBAL_KINDS = [
+  { kind: "title-sheet-writer",   script: "title_sheet_writer.js" },
+  { kind: "review-report-writer", script: "review_report_writer.js" },
+];
+
+function buildDeptApp(deptName, kind) {
+  const spec = DEPT_KINDS.find(p => p.kind === kind);
+  const cwd = path.join(DEPTS_DIR, deptName);
   return {
     name: `tg-${kind}-${deptName}`,
     script: path.join(SHARED_DIR, spec.script),
-    cwd: path.join(DEPTS_DIR, deptName),
+    cwd,
     autorestart: true,
     max_restarts: 10,
     min_uptime: "10s",
     restart_delay: 3000,
-    error_file: path.join(DEPTS_DIR, deptName, "state", `${kind}.error.log`),
-    out_file: path.join(DEPTS_DIR, deptName, "state", `${kind}.out.log`),
+    error_file: path.join(cwd, "state", `${kind}.error.log`),
+    out_file:   path.join(cwd, "state", `${kind}.out.log`),
     merge_logs: true,
-    env: {
-      NODE_ENV: "production",
-    },
+    env: { NODE_ENV: "production" },
+  };
+}
+
+function buildGlobalApp(kind) {
+  const spec = GLOBAL_KINDS.find(p => p.kind === kind);
+  const cwd = path.join(GLOBAL_DIR, kind);
+  return {
+    name: `tg-${kind}`,  // 全局進程: 不帶 dept 尾綴
+    script: path.join(SHARED_DIR, spec.script),
+    cwd,
+    autorestart: true,
+    max_restarts: 10,
+    min_uptime: "10s",
+    restart_delay: 3000,
+    error_file: path.join(cwd, "state", `${kind}.error.log`),
+    out_file:   path.join(cwd, "state", `${kind}.out.log`),
+    merge_logs: true,
+    env: { NODE_ENV: "production" },
   };
 }
 
 function generate() {
   const depts = listDepts();
+  const globals = listGlobals();
   const apps = [];
 
   for (const dept of depts) {
-    for (const { kind } of PROCESS_KINDS) {
-      apps.push(buildApp(dept, kind));
+    for (const { kind } of DEPT_KINDS) {
+      apps.push(buildDeptApp(dept, kind));
     }
   }
+  for (const kind of globals) {
+    apps.push(buildGlobalApp(kind));
+  }
 
-  return { apps, deptCount: depts.length, procCount: apps.length };
+  return {
+    apps,
+    deptCount: depts.length,
+    globalCount: globals.length,
+    procCount: apps.length,
+  };
 }
 
 function serialize(config) {
-  // 用字串模板避免 JSON.stringify 把 script path 變難讀
   const header = [
     "// ecosystem.config.js",
     "// 自動生成 — 勿手動編輯。重跑: node scripts/generate-ecosystem.js",
     `// 生成時間: ${new Date().toISOString()}`,
-    `// 部門數: ${config.deptCount}  進程數: ${config.apps.length}`,
+    `// 部門: ${config.deptCount} 個 × 3 類 + 全局: ${config.globalCount} 個 = ${config.apps.length} 個進程`,
     "",
     "module.exports = ",
   ].join("\n");
   return header + JSON.stringify({ apps: config.apps }, null, 2) + ";\n";
+}
+
+function summary(config) {
+  const deptProcs = config.deptCount * 3;
+  const parts = [
+    `${config.deptCount} 部門 × 3 類 = ${deptProcs}`,
+  ];
+  if (config.globalCount > 0) parts.push(`${config.globalCount} 全局`);
+  return `${parts.join(" + ")} = ${config.apps.length} 個進程`;
 }
 
 function main() {
@@ -85,15 +126,15 @@ function main() {
   if (dryRun) {
     console.log("═══ DRY RUN ═══");
     console.log(content);
-    console.log(`\n[✓] ${result.deptCount} 部門 × 3 類 = ${result.apps.length} 個進程`);
+    console.log(`\n[✓] ${summary(result)}`);
     return;
   }
 
   fs.writeFileSync(OUT_PATH, content);
   console.log(`[✓] 已生成: ${OUT_PATH}`);
-  console.log(`    ${result.deptCount} 部門 × 3 類 = ${result.apps.length} 個進程`);
-  if (result.deptCount === 0) {
-    console.log(`    (當前沒有部門，ecosystem.config.js 是空的)`);
+  console.log(`    ${summary(result)}`);
+  if (result.deptCount === 0 && result.globalCount === 0) {
+    console.log(`    (當前沒有部門也沒有全局進程, ecosystem 空的)`);
   }
 }
 

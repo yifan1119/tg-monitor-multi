@@ -4,6 +4,34 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.2.1-mvp] — 2026-04-17
+
+補齊 baseline 架構對齊 — 全局進程 + 健康檢查.
+
+### 新增
+- **全局進程支援** (對齊 baseline 有的 2 個全局服務):
+  - `global/_template/title-sheet-writer/` 和 `review-report-writer/` 範本
+  - `scripts/new-global.js <kind>` CLI 建立全局進程目錄
+  - `scripts/login-global.js <kind>` CLI TG 登入 (類比 login-dept)
+  - `scripts/generate-ecosystem.js` 擴展掃 `global/` → 生成 `tg-title-sheet-writer` / `tg-review-report-writer` PM2 配置
+  - `configVersion: 1` 欄位 (為 schema migration 預留)
+- **健康檢查 cron** (對齊 baseline `/root/tg-healthchecks/`):
+  - `scripts/healthcheck.sh` 掃 PM2, 非 online → pm2 restart
+  - **故意不護 listener** (重啟會掉 TG session, 跟 baseline 同策略)
+  - lock 檔防重入, log 5MB 自動輪替
+  - `scripts/install-healthcheck.sh install/--status/--remove` cron 管理
+- **Web `/settings` 頁**:
+  - 全局進程狀態表 + 一鍵建立 / 重啟 / 啟動 / 停止
+  - Healthcheck cron 啟用 / 停用開關
+  - 系統資訊卡 (版本 / Node / Google SA / PM2 狀態)
+  - 備份摘要 (數量 + 總大小)
+  - 升級 / 回滾指令對照表
+
+### 架構
+- `global/*` 加入 `.gitignore` (除 `_template/` 和 `.gitkeep`)
+
+---
+
 ## [0.2.0-mvp] — 2026-04-16
 
 ### 新增

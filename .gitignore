@@ -27,6 +27,11 @@ depts/*
 !depts/_template/
 !depts/.gitkeep
 
+# === 全局進程 (跑起來才會有，不進 template repo) ===
+global/*
+!global/_template/
+!global/.gitkeep
+
 # === Node ===
 **/node_modules/
 npm-debug.log*

@@ -15,6 +15,7 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const dataProvider = require("./lib/data-provider");
 const { createDept, validateDeptName } = require("../scripts/new-dept");
+const { createGlobal, listGlobals, KINDS: GLOBAL_KINDS } = require("../scripts/new-global");
 
 // multer: 處理 multipart/form-data (檔案上傳). 記憶體儲存, 200KB 上限 (Google SA JSON 通常 ~2KB)
 const upload = multer({
@@ -533,7 +534,167 @@ app.post("/depts/:name/login/abort", (req, res) => {
 app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
 app.get("/logs",                 placeholder("日誌", "即時 pm2 logs 串流", "v0.3 實作", "留到 v0.3。屆時可用 WebSocket 串 pm2 logs，按部門篩選 + 搜尋關鍵字。"));
 app.get("/logs/:name",           placeholder("部門日誌", "單部門 pm2 logs", "v0.3 實作", "留到 v0.3。"));
-app.get("/settings",             placeholder("系統設置", "用戶管理 / 系統配置", "v0.3 實作", "留到 v0.3。屆時管理員可新增/移除 Web 用戶、修改系統級配置、輪換 TG API / Google SA。"));
+// ─── /settings (全局進程 + healthcheck + 系統資訊) ───
+const CRON_MARKER = "# tg-monitor-multi healthcheck";
+
+function readHealthcheckStatus() {
+  const { execFileSync } = require("child_process");
+  let enabled = false;
+  let cronLine = "";
+  try {
+    const out = execFileSync("crontab", ["-l"], { stdio: ["ignore", "pipe", "ignore"] }).toString();
+    const line = out.split("\n").find(l => l.includes(CRON_MARKER));
+    if (line) {
+      enabled = true;
+      cronLine = line.trim();
+    }
+  } catch { /* crontab 可能不存在 */ }
+  let logTail = "";
+  const logPath = path.join(ROOT, ".healthcheck", "healthcheck.log");
+  if (fs.existsSync(logPath)) {
+    const content = fs.readFileSync(logPath, "utf8").trim();
+    logTail = content.split("\n").slice(-5).join("\n");
+  }
+  return { enabled, cronLine, logTail };
+}
+
+function readBackupsSummary() {
+  const backupsDir = path.join(ROOT, ".backups");
+  if (!fs.existsSync(backupsDir)) return { count: 0, totalSize: "0B" };
+  const entries = fs.readdirSync(backupsDir).filter(n => {
+    const p = path.join(backupsDir, n);
+    return fs.statSync(p).isDirectory();
+  });
+  try {
+    const { execSync } = require("child_process");
+    const size = execSync(`du -sh "${backupsDir}" 2>/dev/null | cut -f1`, { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    return { count: entries.length, totalSize: size || "?" };
+  } catch {
+    return { count: entries.length, totalSize: "?" };
+  }
+}
+
+async function loadGlobalsForSettings() {
+  const names = listGlobals();
+  return names.map(kind => {
+    const dir = path.join(ROOT, "global", kind);
+    const sessionPath = path.join(dir, "session.txt");
+    const sessionOk = fs.existsSync(sessionPath) && fs.statSync(sessionPath).size > 0;
+    return { kind, dir, sessionOk };
+  });
+}
+
+async function listAllProcesses() {
+  return await dataProvider.listProcesses();
+}
+
+app.get("/settings", async (req, res) => {
+  const [globals, procs] = await Promise.all([
+    loadGlobalsForSettings(),
+    listAllProcesses(),
+  ]);
+  const GLOBAL_PURPOSES = {
+    "title-sheet-writer":   "跨部門群名變更彙總 (訂閱多中轉群, 分流寫 Sheet)",
+    "review-report-writer": "審查報告閉環跟蹤 (訂閱多審查報告群, 寫總表)",
+  };
+  const globalKindsWithPurpose = GLOBAL_KINDS.map(k => ({ kind: k, purpose: GLOBAL_PURPOSES[k] }));
+
+  const healthcheck = readHealthcheckStatus();
+  const backups = readBackupsSummary();
+  const gsaExists = fs.existsSync(GOOGLE_SA_PATH);
+  let gsaEmail = "";
+  if (gsaExists) {
+    try { gsaEmail = JSON.parse(fs.readFileSync(GOOGLE_SA_PATH, "utf8")).client_email || ""; } catch {}
+  }
+
+  const systemInfo = {
+    version: VERSION,
+    mode: dataProvider.MODE,
+    root: ROOT,
+    nodeVersion: process.version,
+    gsaExists,
+    gsaEmail,
+    pm2Available: true, // 之後可真的跑 pm2 -v 檢查, MVP 先假設
+  };
+
+  res.render("pages/settings", {
+    title: "系統設置",
+    active: "settings",
+    globals,
+    globalKinds: globalKindsWithPurpose,
+    procs,
+    healthcheck,
+    backups,
+    systemInfo,
+    flash: req.query.flash || null,
+    error: req.query.error || null,
+  });
+});
+
+// ─── 建立全局進程 ───────────────────────────────
+app.post("/settings/global/new", async (req, res) => {
+  const { kind } = req.body;
+  try {
+    const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+    const result = await createGlobal(kind, { tgApiId: sys.tgApiId, tgApiHash: sys.tgApiHash });
+    await regenerateEcosystem();
+    res.redirect(`/settings?flash=${encodeURIComponent(`已建立 global/${result.kind}/, 下一步: SSH 到 VPS 跑 node scripts/login-global.js ${result.kind}`)}`);
+  } catch (e) {
+    console.error("[settings/global/new]", e.message);
+    res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
+  }
+});
+
+// ─── 全局進程 PM2 控制 ───────────────────────────
+app.post("/settings/global/:kind/:action", async (req, res) => {
+  const { kind, action } = req.params;
+  if (!GLOBAL_KINDS.includes(kind)) {
+    return res.redirect(`/settings?error=${encodeURIComponent("unknown kind")}`);
+  }
+  if (!["restart", "start", "stop"].includes(action)) {
+    return res.redirect(`/settings?error=${encodeURIComponent("unknown action")}`);
+  }
+  const procName = `tg-${kind}`;
+  try {
+    if (action === "start") {
+      const ecoPath = path.join(ROOT, "ecosystem.config.js");
+      if (!fs.existsSync(ecoPath)) throw new Error("ecosystem.config.js 不存在, 先建立全局進程");
+      await new Promise(r => execFile("pm2", ["start", ecoPath, "--only", procName], { cwd: ROOT }, (err, _o, _e) => r()));
+    } else {
+      await pm2Exec(action, procName);
+    }
+    res.redirect(`/settings?flash=${encodeURIComponent(`已觸發 pm2 ${action} ${procName}`)}`);
+  } catch (e) {
+    res.redirect(`/settings?error=${encodeURIComponent(e.message)}`);
+  }
+});
+
+// ─── Healthcheck 啟用 / 停用 ───────────────────
+function runHealthcheckInstall(arg) {
+  return new Promise((resolve, reject) => {
+    const script = path.join(ROOT, "scripts", "install-healthcheck.sh");
+    execFile("bash", [script, arg], { cwd: ROOT }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(stderr || err.message));
+      resolve(stdout);
+    });
+  });
+}
+app.post("/settings/healthcheck/install", async (_req, res) => {
+  try {
+    await runHealthcheckInstall("install");
+    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已啟用 (每 5 分鐘)")}`);
+  } catch (e) {
+    res.redirect(`/settings?error=${encodeURIComponent(`啟用失敗: ${e.message}`)}`);
+  }
+});
+app.post("/settings/healthcheck/remove", async (_req, res) => {
+  try {
+    await runHealthcheckInstall("--remove");
+    res.redirect(`/settings?flash=${encodeURIComponent("Healthcheck cron 已停用")}`);
+  } catch (e) {
+    res.redirect(`/settings?error=${encodeURIComponent(`停用失敗: ${e.message}`)}`);
+  }
+});
 
 // ─── 404 ─────────────────────────────────────────────
 app.use((_req, res) => {
