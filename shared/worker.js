@@ -197,16 +197,16 @@ async function getSheetMeta(spreadsheetId, targetSheetName) {
   return result;
 }
 
-// 关键字 Sheet: 写一行, 格式 [序号, 来源群, 发送人, 命中关键词, 消息内容, 登记时间]
+// 关键字 Sheet: 写一行, 数据从第 3 行开始 (行 1 标题 + 行 2 表头)
 async function writeKeywordRow(data) {
   const { spreadsheetId, sheetName } = config.keywordSheet || {};
-  if (!spreadsheetId || !sheetName) return; // 没配就跳过
+  if (!spreadsheetId || !sheetName) return;
 
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
 
-  // 去重: 扫 B5:E (来源群/发送人/关键字/消息内容)
+  // 去重: 扫 B3:E
   const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!B5:E`,
+    spreadsheetId, range: `${sheetTitle}!B3:E`,
   });
   const targetKey = [data.sourceGroup, data.senderName, data.keyword, data.messageContent]
     .map(normalizeText).join("||");
@@ -219,9 +219,9 @@ async function writeKeywordRow(data) {
     }
   }
 
-  // 算序号 (A5:A 的最大值 + 1)
+  // 算序号 (A3:A 最大值 + 1)
   const noRes = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!A5:A`,
+    spreadsheetId, range: `${sheetTitle}!A3:A`,
   });
   let maxNo = 0;
   for (const row of (noRes.data.values || [])) {
@@ -230,13 +230,13 @@ async function writeKeywordRow(data) {
   }
   const nextNo = maxNo + 1;
 
-  // 插入第 5 行 + 写入
+  // 插入第 3 行 + 写入
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
       requests: [{
         insertDimension: {
-          range: { sheetId, dimension: "ROWS", startIndex: 4, endIndex: 5 },
+          range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 },
           inheritFromBefore: false,
         },
       }],
@@ -244,7 +244,7 @@ async function writeKeywordRow(data) {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A5:F5`,
+    range: `${sheetTitle}!A3:F3`,
     valueInputOption: "RAW",
     requestBody: {
       values: [[nextNo, data.sourceGroup, data.senderName, data.keyword, data.messageContent, data.createdAt]],
@@ -262,9 +262,9 @@ async function writeTitleChangeRow(data) {
 
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
 
-  // 去重: 扫 B5:C (原群名/新群名)
+  // 去重: 扫 B3:C (原群名/新群名)
   const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!B5:C`,
+    spreadsheetId, range: `${sheetTitle}!B3:C`,
   });
   const targetKey = [data.oldTitle, data.newTitle].map(normalizeText).join("||");
   for (const row of (existing.data.values || [])) {
@@ -280,7 +280,7 @@ async function writeTitleChangeRow(data) {
     requestBody: {
       requests: [{
         insertDimension: {
-          range: { sheetId, dimension: "ROWS", startIndex: 4, endIndex: 5 },
+          range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 },
           inheritFromBefore: false,
         },
       }],
@@ -288,7 +288,7 @@ async function writeTitleChangeRow(data) {
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!B5:C5`,
+    range: `${sheetTitle}!B3:C3`,
     valueInputOption: "RAW",
     requestBody: { values: [[data.oldTitle, data.newTitle]] },
   });

@@ -47,15 +47,12 @@ const TEMPLATES = {
   keyword: {
     title: (ctx) => `关键字命中记录 — ${ctx.dept || "部门"}`,
     headers: ["编号", "来源群", "发送人", "命中关键词", "消息内容", "登记时间"],
-    // 显式列宽 (像素), 跟 headers 等长
     columnWidths: [70, 220, 160, 130, 480, 170],
-    // 消息内容列开 word wrap
     wrapColumns: [4],
-    // baseline: insertRowAt5 — 数据从第 5 行开始, 1/2/3/4 行给标题 + 表头 + 空行
     titleRow: 1,
-    blankRows: [2, 3],
-    headerRow: 4,
-    dataStartRow: 5,
+    blankRows: [],
+    headerRow: 2,
+    dataStartRow: 3,
   },
   title: {
     title: (ctx) => `广告账号改名履历 — ${ctx.dept || "部门"}`,
@@ -63,9 +60,9 @@ const TEMPLATES = {
     columnWidths: [70, 240, 240, 170, 140],
     wrapColumns: [],
     titleRow: 1,
-    blankRows: [2, 3],
-    headerRow: 4,
-    dataStartRow: 5,
+    blankRows: [],
+    headerRow: 2,
+    dataStartRow: 3,
   },
   review: {
     title: () => "审查报告汇总表",
@@ -84,7 +81,8 @@ const TEMPLATES = {
 };
 
 // 主函数: 确保分页存在 + 应用模板
-async function ensureTemplate({ spreadsheetId, sheetName, type, dept }) {
+// opts.onlyIfMissing = true → 已有标题 (说明模板已应用) 就跳过, 不覆盖
+async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMissing = false }) {
   if (!spreadsheetId || !sheetName) throw new Error("缺少 spreadsheetId 或 sheetName");
   if (!TEMPLATES[type]) throw new Error(`未知模板类型: ${type}`);
   const tmpl = TEMPLATES[type];
@@ -98,6 +96,19 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept }) {
   });
   const existing = (meta.data.sheets || []).find(s => s.properties.title === sheetName);
   let sheetId;
+
+  // onlyIfMissing: 分页已存在 + 第 1 行有内容 → 认为模板已应用, 跳过
+  if (existing && onlyIfMissing) {
+    try {
+      const r = await sheets.spreadsheets.values.get({
+        spreadsheetId,
+        range: `${sheetName}!A1:A1`,
+      });
+      if (r.data.values && r.data.values[0] && r.data.values[0][0]) {
+        return { ok: true, skipped: true, reason: "template already applied", sheetName };
+      }
+    } catch {}
+  }
 
   if (existing) {
     sheetId = existing.properties.sheetId;

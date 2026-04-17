@@ -431,9 +431,23 @@ app.post("/depts/:name/edit", async (req, res) => {
       path.join(DD, name, "config.json"),
       JSON.stringify(updated, null, 2) + "\n"
     );
+    // 自动应用 Sheet 模板 (只对没模板的分页, 已有的不动)
+    let templateFlash = "";
+    if (updated.spreadsheetId && updated.sheetName) {
+      try {
+        const r = await sheetTemplate.ensureTemplate({
+          spreadsheetId: updated.spreadsheetId,
+          sheetName: updated.sheetName,
+          type: "keyword",
+          dept: name,
+          onlyIfMissing: true,
+        });
+        if (!r.skipped) templateFlash = " · 已自动建 Sheet 模板";
+      } catch (e) { console.warn("[auto-template]", e.message); }
+    }
     // 保存后自动重启 (若进程在跑)
     await restartDept(name);
-    res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已保存 config.json 并尝试重启进程")}`);
+    res.redirect(`/depts/${name}/edit?flash=${encodeURIComponent("已保存 config.json 并尝试重启进程" + templateFlash)}`);
   } catch (e) {
     console.error("save config failed:", e);
     const procs = await listProcsForDept(name);
@@ -878,8 +892,21 @@ app.post("/settings/global/:kind/edit", async (req, res) => {
     }
 
     fs.writeFileSync(path.join(g.dir, "config.json"), JSON.stringify(updated, null, 2) + "\n");
+    // review-report-writer 自动应用审查报告模板 (若分页没模板)
+    let templateFlash = "";
+    if (kind === "review-report-writer" && updated.spreadsheetId && updated.sheetName) {
+      try {
+        const r = await sheetTemplate.ensureTemplate({
+          spreadsheetId: updated.spreadsheetId,
+          sheetName: updated.sheetName,
+          type: "review",
+          onlyIfMissing: true,
+        });
+        if (!r.skipped) templateFlash = " · 已自动建 Sheet 模板";
+      } catch (e) { console.warn("[auto-template global]", e.message); }
+    }
     await pm2Exec("restart", `tg-${kind}`);
-    res.redirect(`/settings/global/${kind}/edit?flash=${encodeURIComponent("已保存 config 并尝试重启")}`);
+    res.redirect(`/settings/global/${kind}/edit?flash=${encodeURIComponent("已保存 config 并尝试重启" + templateFlash)}`);
   } catch (e) {
     console.error("save global config:", e);
     const all = await dataProvider.listProcesses();
