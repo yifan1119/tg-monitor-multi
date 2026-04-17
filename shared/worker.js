@@ -227,75 +227,22 @@ async function getSheetMeta(spreadsheetId, targetSheetName) {
   return result;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 表头 → 字段智能识别 (用户 Sheet 里随便写什么表头, 按模式猜意图)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 规则顺序 = 优先级 (更具体的规则放前面, 通用的放后面)
-const FIELD_RULES = [
-  // ── ID 类 (必须在通用"id"之前) ──
-  { field: "sourceGroupId",   re: /(群|来源|source|chat|group).{0,3}(id)|groupid/i },
-  { field: "messageId",       re: /(消息|msg|message).{0,3}id/i },
-
-  // ── 时间细分 (发送时间 / 消息时间 优先于通用时间) ──
-  { field: "messageDate",     re: /(消息|发送|发言|发出|message|send|sent).{0,3}(时间|日期|time|date)/i },
-
-  // ── 群名变更 ──
-  { field: "oldTitle",        re: /(原|旧|改前|之前|before|prev|previous|old).{0,3}(群名|名称|标题|名字|title|name)|^原群|^旧群|^(原名|旧名|改前)$/i },
-  { field: "newTitle",        re: /(新|改后|之后|after|current|new).{0,3}(群名|名称|标题|名字|title|name)|^新群|变更[后为]|改为|^(新名|改后)$/i },
-
-  // ── 关键字 ──
-  { field: "keyword",         re: /(命中)?关键[字词]|触发词|匹配|命中|keyword|hit|matched?/i },
-
-  // ── 消息内容 ──
-  { field: "messageContent",  re: /(消息|原|发言)?(内容|正文|详情|原文|文本)|(message|msg).{0,3}(content|text|body)|content|text|body/i },
-
-  // ── 人员 ──
-  { field: "senderName",      re: /(发送|发言|操作|执行|审查|登记|创建|create)?(人|者|员|方|用户|user)|operator|sender|author|by$|谁|operator/i },
-
-  // ── 来源群 ──
-  { field: "sourceGroup",     re: /(来源|所在|原|出处)?(群|频道|会话|chat|channel|group)(名|名称|title|name)?|source|来自/i },
-
-  // ── 登记时间 (通用时间, 放最后) ──
-  { field: "createdAt",       re: /(登记|记录|变更|改名|创建|发生|create|record|change|update|register)?(时间|日期|时刻|time|date|at$|when|timestamp)|datetime/i },
-
-  // ── 序号 (通用, 放最后) ──
-  { field: "serialNo",        re: /^(编号|序号|序號|流水号?|序列号?|id|#|no\.?|number|index|idx)$|(编|序|流水)号/i },
+// 预设列 (写死, 不改). 用户想要不同结构就改 shared/worker.js
+const KEYWORD_COLUMNS = [
+  { field: "serialNo" },        // A 编号
+  { field: "sourceGroup" },     // B 来源群
+  { field: "senderName" },      // C 发送人
+  { field: "keyword" },         // D 命中关键词
+  { field: "messageContent" },  // E 消息内容
+  { field: "createdAt" },       // F 登记时间
 ];
-
-function matchField(header) {
-  const h = String(header || "").trim();
-  if (!h) return null;
-  for (const rule of FIELD_RULES) {
-    if (rule.re.test(h)) return rule.field;
-  }
-  return null; // 识别不了, 该列不写值
-}
-
-// 读 Sheet 实际表头 → 自动识别每列 field (60s 缓存)
-const columnsCache = new Map(); // `${spreadsheetId}::${sheetName}` → {columns, at}
-const COL_CACHE_TTL = 60 * 1000;
-
-async function getColumnsFromSheet(spreadsheetId, sheetName) {
-  const key = `${spreadsheetId}::${sheetName}`;
-  const hit = columnsCache.get(key);
-  if (hit && Date.now() - hit.at < COL_CACHE_TTL) return hit.columns;
-
-  const { sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
-  // 读表头行 (row 2)
-  const r = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!A2:Z2`,
-  });
-  const headers = (r.data.values && r.data.values[0]) || [];
-  const columns = headers.map(h => {
-    const hStr = String(h || "").trim();
-    return {
-      header: hStr,
-      field: matchField(hStr), // null = 没识别出来
-    };
-  });
-  columnsCache.set(key, { columns, at: Date.now() });
-  return columns;
-}
+const TITLE_COLUMNS = [
+  { field: "serialNo" },        // A 序号
+  { field: "oldTitle" },        // B 原群名
+  { field: "newTitle" },        // C 新群名
+  { field: "createdAt" },       // D 变更时间
+  { field: "senderName" },      // E 操作人
+];
 
 // 把 data 对象按 columns 顺序展开成 row (一个数组)
 function buildRow(columns, data) {
@@ -323,8 +270,7 @@ async function writeKeywordRow(data) {
   const { spreadsheetId, sheetName } = config.keywordSheet || {};
   if (!spreadsheetId || !sheetName) return;
 
-  const columns = await getColumnsFromSheet(spreadsheetId, sheetName);
-  if (columns.length === 0) { console.warn("keyword Sheet 表头为空, 跳过写入"); return; }
+  const columns = KEYWORD_COLUMNS;
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
   const lastColLetter = colLetter(columns.length - 1);
 
@@ -338,7 +284,7 @@ async function writeKeywordRow(data) {
     const firstC = colLetter(Math.min(...dedupeCols));
     const lastC  = colLetter(Math.max(...dedupeCols));
     const existing = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${sheetTitle}!${firstC}3:${lastC}`,
+      spreadsheetId, range: `${sheetTitle}!${firstC}2:${lastC}`,
     });
     const offset = Math.min(...dedupeCols);
     const targetVals = dedupeCols.map(ci => normalizeText(data[columns[ci].field] || ""));
@@ -356,7 +302,7 @@ async function writeKeywordRow(data) {
   const serialIdx = findSerialCol(columns);
   if (serialIdx >= 0) {
     const sc = colLetter(serialIdx);
-    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}2:${sc}` });
     let maxNo = 0;
     for (const row of (noRes.data.values || [])) {
       const n = Number(row?.[0] || 0);
@@ -369,12 +315,12 @@ async function writeKeywordRow(data) {
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
-      requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }],
+      requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 }, inheritFromBefore: false } }],
     },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A3:${lastColLetter}3`,
+    range: `${sheetTitle}!A2:${lastColLetter}2`,
     valueInputOption: "RAW",
     requestBody: { values: [buildRow(columns, data)] },
   });
@@ -388,8 +334,7 @@ async function writeTitleChangeRow(data) {
   const { spreadsheetId, sheetName } = config.titleSheet;
   if (!spreadsheetId || !sheetName) return;
 
-  const columns = await getColumnsFromSheet(spreadsheetId, sheetName);
-  if (columns.length === 0) { console.warn("title Sheet 表头为空, 跳过写入"); return; }
+  const columns = TITLE_COLUMNS;
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
   const lastColLetter = colLetter(columns.length - 1);
 
@@ -399,7 +344,7 @@ async function writeTitleChangeRow(data) {
   if (oldIdx >= 0 && newIdx >= 0) {
     const a = colLetter(Math.min(oldIdx, newIdx));
     const b = colLetter(Math.max(oldIdx, newIdx));
-    const existing = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${a}3:${b}` });
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${a}2:${b}` });
     const tKey = normalizeText(data.oldTitle || "") + "||" + normalizeText(data.newTitle || "");
     const offset = Math.min(oldIdx, newIdx);
     for (const row of (existing.data.values || [])) {
@@ -412,7 +357,7 @@ async function writeTitleChangeRow(data) {
   const serialIdx = findSerialCol(columns);
   if (serialIdx >= 0) {
     const sc = colLetter(serialIdx);
-    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}2:${sc}` });
     let maxNo = 0;
     for (const row of (noRes.data.values || [])) {
       const n = Number(row?.[0] || 0);
@@ -426,11 +371,11 @@ async function writeTitleChangeRow(data) {
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }] },
+    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 }, inheritFromBefore: false } }] },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A3:${lastColLetter}3`,
+    range: `${sheetTitle}!A2:${lastColLetter}2`,
     valueInputOption: "RAW",
     requestBody: { values: [buildRow(columns, data)] },
   });

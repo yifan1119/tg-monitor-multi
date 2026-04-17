@@ -1059,8 +1059,8 @@ app.post("/api/sheet-template/init", async (req, res) => {
   }
 });
 
-// 模板管理: 读 / 改 列配置
-app.get("/settings/sheet-templates", (req, res) => {
+// 模板管理已砍 — 用户想改样式自己去 Sheet 调, 预设表头写死
+app.get("/settings/sheet-templates/_disabled", (req, res) => {
   const types = ["keyword", "title", "review"];
   const templates = types.map(t => {
     const base = sheetTemplate.TEMPLATES[t];
