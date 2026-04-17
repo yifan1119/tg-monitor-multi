@@ -23,6 +23,10 @@
 
 set -euo pipefail
 
+# 防 cwd 失效: 若用户刚 rm -rf 掉当前目录再跑 install, getcwd 会炸
+# 强制切到存在的目录 (git clone / docker 都依赖有效 cwd)
+cd /tmp 2>/dev/null || cd / || true
+
 INSTALL_DIR="${INSTALL_DIR:-/opt/tg-monitor-multi}"
 REPO_URL="${REPO_URL:-https://github.com/yifan1119/tg-monitor-multi.git}"
 BRANCH="${BRANCH:-main}"
