@@ -28,11 +28,18 @@ services:
       - "${WEB_PORT:-5003}:5003"
 
     volumes:
+      # 代碼目錄 bind mount — git pull 後 docker compose restart 就生效, 不必 --build
+      # (只有 Dockerfile / package.json 改了才需要 rebuild)
+      - ./web:/app/web
+      - ./shared:/app/shared
+      - ./scripts:/app/scripts
+      - ./VERSION:/app/VERSION:ro
       # 用戶資料 (絕不能進 image, volume mount 保留升級)
       - ./depts:/app/depts
       - ./global:/app/global
       - ./data:/app/data
-      # Google SA 單檔 mount (install.sh 會先在 secrets/ 放佔位檔)
+      # Google SA 單檔 mount — 必須在 ./shared mount 之後, 才能 overlay 上去
+      # (install.sh 會先在 secrets/ 放佔位檔)
       - ./secrets/google-service-account.json:/app/shared/google-service-account.json
       # 備份 + 健康檢查 log
       - ./.backups:/app/.backups
