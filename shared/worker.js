@@ -284,7 +284,7 @@ async function writeKeywordRow(data) {
     const firstC = colLetter(Math.min(...dedupeCols));
     const lastC  = colLetter(Math.max(...dedupeCols));
     const existing = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${sheetTitle}!${firstC}2:${lastC}`,
+      spreadsheetId, range: `${sheetTitle}!${firstC}3:${lastC}`,
     });
     const offset = Math.min(...dedupeCols);
     const targetVals = dedupeCols.map(ci => normalizeText(data[columns[ci].field] || ""));
@@ -302,7 +302,7 @@ async function writeKeywordRow(data) {
   const serialIdx = findSerialCol(columns);
   if (serialIdx >= 0) {
     const sc = colLetter(serialIdx);
-    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}2:${sc}` });
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
     let maxNo = 0;
     for (const row of (noRes.data.values || [])) {
       const n = Number(row?.[0] || 0);
@@ -315,12 +315,12 @@ async function writeKeywordRow(data) {
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
-      requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 }, inheritFromBefore: false } }],
+      requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }],
     },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A2:${lastColLetter}2`,
+    range: `${sheetTitle}!A3:${lastColLetter}3`,
     valueInputOption: "RAW",
     requestBody: { values: [buildRow(columns, data)] },
   });
@@ -344,7 +344,7 @@ async function writeTitleChangeRow(data) {
   if (oldIdx >= 0 && newIdx >= 0) {
     const a = colLetter(Math.min(oldIdx, newIdx));
     const b = colLetter(Math.max(oldIdx, newIdx));
-    const existing = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${a}2:${b}` });
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${a}3:${b}` });
     const tKey = normalizeText(data.oldTitle || "") + "||" + normalizeText(data.newTitle || "");
     const offset = Math.min(oldIdx, newIdx);
     for (const row of (existing.data.values || [])) {
@@ -357,7 +357,7 @@ async function writeTitleChangeRow(data) {
   const serialIdx = findSerialCol(columns);
   if (serialIdx >= 0) {
     const sc = colLetter(serialIdx);
-    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}2:${sc}` });
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
     let maxNo = 0;
     for (const row of (noRes.data.values || [])) {
       const n = Number(row?.[0] || 0);
@@ -371,11 +371,11 @@ async function writeTitleChangeRow(data) {
 
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 1, endIndex: 2 }, inheritFromBefore: false } }] },
+    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }] },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A2:${lastColLetter}2`,
+    range: `${sheetTitle}!A3:${lastColLetter}3`,
     valueInputOption: "RAW",
     requestBody: { values: [buildRow(columns, data)] },
   });
