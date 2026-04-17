@@ -1,25 +1,24 @@
 #!/usr/bin/env bash
-# rollback.sh — 回滾到某次 update 前的狀態
+# rollback.sh — 回滾到某次 update 前的狀態. 自動偵測 Docker / 裸跑模式.
 #
 # 用法:
-#   bash scripts/rollback.sh                        # 列出可用備份, 提示選擇
-#   bash scripts/rollback.sh .backups/20260416-130000/
+#   bash scripts/rollback.sh                         # 列備份並提示
+#   bash scripts/rollback.sh .backups/<timestamp>/   # 回滾到某次備份
 #
-# 做什麼:
-#   1. 預備份: 先把當前的 depts/ + data/ 再備一份到 .backups/rollback-safety-<ts>/
-#      (防回滾本身也出錯, 還能再回滾回來)
+# 流程:
+#   1. 預備份當前狀態 → .backups/rollback-safety-<ts>/  (保命)
 #   2. git reset --hard <old_commit>
-#   3. npm ci  (裝回舊版 package-lock 的依賴)
-#   4. 還原 depts/ 和 data/
-#   5. 重生 ecosystem.config.js
-#   6. pm2 reload
+#   3. 按模式重啟:
+#      - Docker: docker compose up -d --build  (image rebuild 回舊版代碼)
+#      - 裸跑:   npm ci + pm2 reload
+#   4. 還原 depts/ + data/ + global/ + secrets/
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BACKUP="${1:-}"
 
-# ─── 列出備份並讓用戶選 ─────────────────────────────
+# ─── 列備份 ──────────────────────────────────────────
 list_backups() {
   echo ""
   echo "可用備份 (最近在上):"
@@ -32,7 +31,8 @@ list_backups() {
     local ts=$(basename "$dir" | sed 's|/$||')
     local ver=$(cat "$dir/version" 2>/dev/null || echo "?")
     local commit=$(cat "$dir/commit" 2>/dev/null || echo "?")
-    printf "  %d. %s  (%s @ %s)\n" "$n" "$ts" "$ver" "${commit:0:8}"
+    local mode=$(cat "$dir/mode" 2>/dev/null || echo "?")
+    printf "  %d. %-32s  %-12s  %-12s  [%s]\n" "$n" "$ts" "$ver" "${commit:0:8}" "$mode"
     n=$((n+1))
   done
 }
@@ -45,46 +45,51 @@ if [[ -z "$BACKUP" ]]; then
   exit 1
 fi
 
-# 支援相對路徑
-if [[ "$BACKUP" != /* ]]; then
-  BACKUP="$ROOT/$BACKUP"
-fi
-BACKUP="${BACKUP%/}"  # 去尾斜線
+# 相對路徑轉絕對
+[[ "$BACKUP" != /* ]] && BACKUP="$ROOT/$BACKUP"
+BACKUP="${BACKUP%/}"
 
 # ─── 驗證備份 ───────────────────────────────────────
-if [[ ! -d "$BACKUP" ]]; then
-  echo "✗ 備份目錄不存在: $BACKUP"
-  list_backups
-  exit 1
-fi
-if [[ ! -f "$BACKUP/commit" ]]; then
-  echo "✗ 備份損壞: 缺 commit 檔 ($BACKUP/commit)"
-  exit 1
-fi
+[[ -d "$BACKUP" ]] || { echo "✗ 備份目錄不存在: $BACKUP"; list_backups; exit 1; }
+[[ -f "$BACKUP/commit" ]] || { echo "✗ 備份損壞: 缺 commit 檔"; exit 1; }
 
 OLD_COMMIT="$(cat "$BACKUP/commit")"
 OLD_VERSION="$(cat "$BACKUP/version" 2>/dev/null || echo '?')"
+BACKUP_MODE="$(cat "$BACKUP/mode" 2>/dev/null || echo 'bare')"
+
 CURRENT_COMMIT="$(git -C "$ROOT" rev-parse HEAD)"
 CURRENT_VERSION="$(cat "$ROOT/VERSION" 2>/dev/null || echo '?')"
 
+# ─── 決定當前 mode (用 update.sh 的邏輯) ───────────
+detect_mode() {
+  if [[ -f "$ROOT/docker-compose.yml" ]] && command -v docker >/dev/null 2>&1; then
+    echo "docker"; return
+  fi
+  echo "bare"
+}
+CURRENT_MODE="${ROLLBACK_MODE:-$(detect_mode)}"
+
 echo "═══════════════════════════════════════════════════"
-echo "  tg-monitor-multi rollback"
+echo "  tg-monitor-multi rollback · [$CURRENT_MODE mode]"
 echo "═══════════════════════════════════════════════════"
-echo "  當前: $CURRENT_VERSION ($CURRENT_COMMIT)"
-echo "  目標: $OLD_VERSION  ($OLD_COMMIT)"
+echo "  當前: $CURRENT_VERSION ($CURRENT_COMMIT)  [$CURRENT_MODE]"
+echo "  目標: $OLD_VERSION  ($OLD_COMMIT)  [$BACKUP_MODE]"
 echo "  備份: $BACKUP"
 echo ""
 
-# ─── 1. 預備份當前狀態 (防回滾也出錯) ────────────
+# ─── 1. 預備份當前狀態 (保命) ──────────────────────
 SAFETY_TS="$(date +%Y%m%d-%H%M%S)"
 SAFETY_BACKUP="$ROOT/.backups/rollback-safety-$SAFETY_TS"
 mkdir -p "$SAFETY_BACKUP"
 echo "▸ 預備份當前狀態 → $SAFETY_BACKUP"
-[[ -d "$ROOT/depts" ]] && cp -r "$ROOT/depts" "$SAFETY_BACKUP/depts"
-[[ -d "$ROOT/data" ]]  && cp -r "$ROOT/data"  "$SAFETY_BACKUP/data"
+[[ -d "$ROOT/depts"   ]] && cp -r "$ROOT/depts"   "$SAFETY_BACKUP/depts"
+[[ -d "$ROOT/data"    ]] && cp -r "$ROOT/data"    "$SAFETY_BACKUP/data"
+[[ -d "$ROOT/global"  ]] && cp -r "$ROOT/global"  "$SAFETY_BACKUP/global"
+[[ -d "$ROOT/secrets" ]] && cp -r "$ROOT/secrets" "$SAFETY_BACKUP/secrets"
 echo "$CURRENT_COMMIT"  > "$SAFETY_BACKUP/commit"
 echo "$CURRENT_VERSION" > "$SAFETY_BACKUP/version"
 echo "$SAFETY_TS"       > "$SAFETY_BACKUP/timestamp"
+echo "$CURRENT_MODE"    > "$SAFETY_BACKUP/mode"
 echo "  ✓ 若回滾失敗可用: bash scripts/rollback.sh $SAFETY_BACKUP"
 echo ""
 
@@ -97,45 +102,52 @@ if ! git -C "$ROOT" reset --hard "$OLD_COMMIT"; then
 fi
 echo ""
 
-# ─── 3. 重裝舊版依賴 ──────────────────────────────
-echo "▸ 重裝依賴 (shared/)..."
-(cd "$ROOT/shared" && npm ci --silent) || echo "⚠ shared/npm ci 失敗, 繼續"
-
-echo "▸ 重裝依賴 (web/)..."
-(cd "$ROOT/web" && npm ci --silent) || echo "⚠ web/npm ci 失敗, 繼續"
+# ─── 3. 還原 depts/ 和 data/ 和 global/ 和 secrets/ ──
+echo "▸ 還原用戶資料..."
+if [[ -d "$BACKUP/depts" ]];   then rm -rf "$ROOT/depts"   && cp -r "$BACKUP/depts"   "$ROOT/depts";   echo "  ✓ depts/"; fi
+if [[ -d "$BACKUP/data" ]];    then rm -rf "$ROOT/data"    && cp -r "$BACKUP/data"    "$ROOT/data";    echo "  ✓ data/"; fi
+if [[ -d "$BACKUP/global" ]];  then rm -rf "$ROOT/global"  && cp -r "$BACKUP/global"  "$ROOT/global";  echo "  ✓ global/"; fi
+if [[ -d "$BACKUP/secrets" ]]; then rm -rf "$ROOT/secrets" && cp -r "$BACKUP/secrets" "$ROOT/secrets"; echo "  ✓ secrets/"; fi
 echo ""
 
-# ─── 4. 還原 depts/ 和 data/ ─────────────────────
-echo "▸ 還原 depts/ 和 data/..."
-if [[ -d "$BACKUP/depts" ]]; then
-  rm -rf "$ROOT/depts"
-  cp -r "$BACKUP/depts" "$ROOT/depts"
-  echo "  ✓ depts/"
-fi
-if [[ -d "$BACKUP/data" ]]; then
-  rm -rf "$ROOT/data"
-  cp -r "$BACKUP/data" "$ROOT/data"
-  echo "  ✓ data/"
-fi
-echo ""
+# ─── 4a. Docker 模式: rebuild + restart ───────────
+if [[ "$CURRENT_MODE" == "docker" ]]; then
+  echo "▸ docker compose up -d --build (回舊版代碼 rebuild)..."
+  docker compose up -d --build
 
-# ─── 5. 重生 ecosystem ────────────────────────────
-echo "▸ 重生 ecosystem.config.js..."
-node "$ROOT/scripts/generate-ecosystem.js" || echo "⚠ ecosystem 生成失敗"
-echo ""
+  echo "▸ 等 container healthy..."
+  for i in $(seq 1 60); do
+    status=$(docker inspect -f '{{.State.Health.Status}}' tg-monitor-multi 2>/dev/null || echo "starting")
+    if [[ "$status" == "healthy" ]]; then
+      echo "  ✓ healthy (${i}s)"
+      break
+    fi
+    if [[ "$status" == "unhealthy" ]]; then
+      echo "  ✗ unhealthy — 看 log: docker compose logs"
+      echo "  回滾前狀態仍可用: bash scripts/rollback.sh $SAFETY_BACKUP"
+      exit 3
+    fi
+    sleep 1
+  done
 
-# ─── 6. 重啟 PM2 ───────────────────────────────────
-if command -v pm2 >/dev/null; then
-  echo "▸ PM2 reload..."
-  if [[ -f "$ROOT/ecosystem.config.js" ]]; then
-    pm2 reload "$ROOT/ecosystem.config.js" 2>/dev/null || pm2 start "$ROOT/ecosystem.config.js" || true
+# ─── 4b. 裸跑模式: npm ci + pm2 reload ──────────────
+else
+  echo "▸ 重裝依賴 (npm ci)..."
+  (cd "$ROOT" && npm ci --silent) || echo "⚠ npm ci 失敗, 繼續"
+
+  echo "▸ 重生 ecosystem.config.js..."
+  node "$ROOT/scripts/generate-ecosystem.js" || echo "⚠ ecosystem 生成失敗"
+
+  if command -v pm2 >/dev/null; then
+    echo "▸ pm2 reload..."
+    [[ -f "$ROOT/ecosystem.config.js" ]] && pm2 reload "$ROOT/ecosystem.config.js" 2>/dev/null || pm2 start "$ROOT/ecosystem.config.js" 2>/dev/null || true
     pm2 save >/dev/null 2>&1 || true
   fi
 fi
 
 echo ""
 echo "═══════════════════════════════════════════════════"
-echo "  ✓ 已回滾到 $OLD_VERSION ($OLD_COMMIT)"
+echo "  ✓ 已回滾到 $OLD_VERSION ($OLD_COMMIT)  [$CURRENT_MODE]"
 echo "═══════════════════════════════════════════════════"
 echo ""
 echo "若此次回滾也有問題, 可再回到回滾前狀態:"

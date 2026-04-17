@@ -44,6 +44,15 @@ ecosystem.config.js   # 運行時生成，不進 git
 
 # === 升級備份（每次 update.sh 自動生成） ===
 .backups/
+.healthcheck/
+
+# === Docker Compose 本地 .env (部署層參數, 從 .env.example 複製) ===
+.env
+!.env.example
+
+# === Secrets (Google SA JSON 走 bind mount, 實際檔案不進 git) ===
+secrets/*
+!secrets/.gitkeep
 
 # === 本地暫存 ===
 .DS_Store

@@ -714,5 +714,29 @@ app.listen(PORT, () => {
   console.log("║  mode:   " + dataProvider.MODE.toUpperCase());
   console.log("║  listen: http://localhost:" + PORT);
   console.log("║  root:   " + ROOT);
+  if (process.env.TG_MONITOR_MULTI_DOCKER === "1") {
+    console.log("║  env:    DOCKER (tg-* 進程由本 Web 的同 pm2 daemon 管)");
+  }
   console.log("╚════════════════════════════════════════════════════════");
+
+  // 啟動時: 若 ecosystem.config.js 存在且含進程定義, 自動 pm2 start
+  // (讓容器重啟 / 服務重啟後, 既有部門進程自動拉起)
+  const ecoPath = path.join(ROOT, "ecosystem.config.js");
+  if (fs.existsSync(ecoPath)) {
+    try {
+      const content = fs.readFileSync(ecoPath, "utf8");
+      if (content.includes('"name"')) {
+        console.log("[boot] 偵測到 ecosystem.config.js 含進程定義, 嘗試 pm2 start...");
+        execFile("pm2", ["start", ecoPath], { cwd: ROOT }, (err, stdout, stderr) => {
+          if (err) {
+            console.warn("[boot] pm2 start ecosystem 失敗:", (stderr || err.message).split("\n")[0]);
+          } else {
+            console.log("[boot] ecosystem 載入完成");
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("[boot] 讀 ecosystem.config.js 失敗:", e.message);
+    }
+  }
 });

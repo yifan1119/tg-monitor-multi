@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
-# update.sh — 從 git 拉新版並重啟. 用戶資料 (depts/, data/) 自動備份.
+# update.sh — 從 git 拉新版並重啟. 自動偵測 Docker / 裸跑模式.
 #
-# 流程:
+# 流程 (兩種模式共通):
 #   1. 記錄當前 commit + 版號
-#   2. 備份 depts/ + data/ 到 .backups/<timestamp>/
-#   3. git fetch + pull --ff-only  (不允許 merge, 確保乾淨)
-#   4. npm ci (嚴格按 package-lock.json)
-#   5. 重生 ecosystem.config.js
-#   6. pm2 reload 所有 tg-* 進程
-#
-# 失敗時:
-#   - git pull 失敗 → 本地沒改動, 直接退出
-#   - npm ci 失敗 → 備份在, 可手動回滾: bash scripts/rollback.sh .backups/<latest>/
+#   2. 備份 depts/ + data/ + global/ + secrets/ 到 .backups/<timestamp>/
+#   3. git fetch + pull --ff-only
+#   4. 按模式重啟:
+#      - Docker:  docker compose up -d --build
+#      - 裸跑:    npm ci + pm2 reload ecosystem.config.js
 #
 # R1-R7 契約保證:
 #   - session.txt / .env / google-service-account.json 永不被腳本改動
@@ -27,11 +23,35 @@ LOG="$BACKUP_DIR/update.log"
 
 cd "$ROOT"
 
+# ─── 偵測部署模式 ──────────────────────────────────
+detect_mode() {
+  if [[ -f "$ROOT/docker-compose.yml" ]] && command -v docker >/dev/null 2>&1; then
+    # compose file 存在 + docker 可用 → 檢查 container 是否跑過
+    if docker compose ps --services 2>/dev/null | grep -q "tg-monitor"; then
+      echo "docker"
+      return
+    fi
+    # 有 compose file 但 container 沒跑 (首次裝或下線中)
+    # 問: 要不要走 Docker? 由環境變數決定, 預設 docker (因 compose file 在就表示該走 docker)
+    echo "docker"
+    return
+  fi
+  echo "bare"
+}
+
+MODE="${UPDATE_MODE:-$(detect_mode)}"
+
 # ─── 預檢 ──────────────────────────────────────────
 command -v git >/dev/null || { echo "✗ git 未安裝"; exit 1; }
-command -v node >/dev/null || { echo "✗ node 未安裝"; exit 1; }
-command -v npm >/dev/null || { echo "✗ npm 未安裝"; exit 1; }
 [[ -d "$ROOT/.git" ]] || { echo "✗ 不是 git repo: $ROOT"; exit 1; }
+
+if [[ "$MODE" == "docker" ]]; then
+  command -v docker >/dev/null || { echo "✗ Docker 未裝 (UPDATE_MODE=docker)"; exit 1; }
+  docker compose version >/dev/null 2>&1 || { echo "✗ docker compose plugin 不可用"; exit 1; }
+else
+  command -v node >/dev/null || { echo "✗ node 未裝 (UPDATE_MODE=bare)"; exit 1; }
+  command -v npm  >/dev/null || { echo "✗ npm 未裝";  exit 1; }
+fi
 
 # ─── 1. 記錄當前版本 ──────────────────────────────
 OLD_COMMIT="$(git rev-parse HEAD)"
@@ -41,36 +61,33 @@ mkdir -p "$BACKUP_DIR"
 exec > >(tee -a "$LOG") 2>&1
 
 echo "═══════════════════════════════════════════════════"
-echo "  tg-monitor-multi update · $TS"
+echo "  tg-monitor-multi update · $TS · [$MODE mode]"
 echo "═══════════════════════════════════════════════════"
-echo "  當前版本: $OLD_VERSION"
+echo "  當前版本:  $OLD_VERSION"
 echo "  當前 commit: $OLD_COMMIT"
 echo ""
 
 # ─── 2. 備份 ───────────────────────────────────────
-echo "▸ 備份 depts/ + data/ 到 $BACKUP_DIR ..."
-if [[ -d "$ROOT/depts" ]]; then
-  cp -r "$ROOT/depts" "$BACKUP_DIR/depts"
-fi
-if [[ -d "$ROOT/data" ]]; then
-  cp -r "$ROOT/data" "$BACKUP_DIR/data"
-fi
-# 記錄 commit + version, 讓 rollback 能用
-echo "$OLD_COMMIT" > "$BACKUP_DIR/commit"
-echo "$OLD_VERSION" > "$BACKUP_DIR/version"
-echo "$TS" > "$BACKUP_DIR/timestamp"
+echo "▸ 備份 depts/ + data/ + global/ + secrets/ → $BACKUP_DIR"
+[[ -d "$ROOT/depts"   ]] && cp -r "$ROOT/depts"   "$BACKUP_DIR/depts"
+[[ -d "$ROOT/data"    ]] && cp -r "$ROOT/data"    "$BACKUP_DIR/data"
+[[ -d "$ROOT/global"  ]] && cp -r "$ROOT/global"  "$BACKUP_DIR/global"
+[[ -d "$ROOT/secrets" ]] && cp -r "$ROOT/secrets" "$BACKUP_DIR/secrets"
 
+echo "$OLD_COMMIT"  > "$BACKUP_DIR/commit"
+echo "$OLD_VERSION" > "$BACKUP_DIR/version"
+echo "$TS"          > "$BACKUP_DIR/timestamp"
+echo "$MODE"        > "$BACKUP_DIR/mode"
 echo "  ✓ 備份完成"
 echo ""
 
 # ─── 3. git pull ───────────────────────────────────
-echo "▸ 拉取新版..."
+echo "▸ 拉取新版 (git pull --ff-only)..."
 git fetch origin
 if ! git pull --ff-only; then
   echo ""
-  echo "✗ git pull --ff-only 失敗"
-  echo "  可能原因: 本地有未 commit 改動、或分支有衝突"
-  echo "  本地狀態沒動. 如果要強制覆蓋, 手動處理後重跑."
+  echo "✗ git pull --ff-only 失敗 (有衝突 / 本地未 commit 改動)"
+  echo "  本地代碼沒變, 備份仍在. 修正後重跑."
   exit 2
 fi
 
@@ -86,36 +103,50 @@ fi
 echo "  $OLD_VERSION ($OLD_COMMIT) → $NEW_VERSION ($NEW_COMMIT)"
 echo ""
 
-# ─── 4. npm ci ─────────────────────────────────────
-echo "▸ 更新依賴 (shared/)..."
-(cd "$ROOT/shared" && npm ci --silent)
+# ─── 4a. Docker 模式: compose up --build ──────────
+if [[ "$MODE" == "docker" ]]; then
+  echo "▸ docker compose up -d --build (rebuild + rolling restart)..."
+  docker compose up -d --build
 
-echo "▸ 更新依賴 (web/)..."
-(cd "$ROOT/web" && npm ci --silent)
-echo ""
+  echo "▸ 等 container healthy..."
+  for i in $(seq 1 60); do
+    status=$(docker inspect -f '{{.State.Health.Status}}' tg-monitor-multi 2>/dev/null || echo "starting")
+    if [[ "$status" == "healthy" ]]; then
+      echo "  ✓ healthy (${i}s)"
+      break
+    fi
+    if [[ "$status" == "unhealthy" ]]; then
+      echo "  ✗ unhealthy — 看 log: docker compose logs"
+      echo "  考慮回滾: bash scripts/rollback.sh $BACKUP_DIR"
+      exit 3
+    fi
+    sleep 1
+  done
 
-# ─── 5. 重生 ecosystem ────────────────────────────
-echo "▸ 重生 ecosystem.config.js..."
-node "$ROOT/scripts/generate-ecosystem.js"
-echo ""
-
-# ─── 6. 重啟 PM2 ───────────────────────────────────
-if command -v pm2 >/dev/null; then
-  echo "▸ PM2 reload..."
-  if [[ -f "$ROOT/ecosystem.config.js" ]]; then
-    # reload = 零停機 (若有 autorestart)
-    pm2 reload "$ROOT/ecosystem.config.js" 2>/dev/null || pm2 start "$ROOT/ecosystem.config.js"
-    pm2 save >/dev/null
-  else
-    echo "  (ecosystem.config.js 不存在, 跳過 — 尚無部門)"
-  fi
+# ─── 4b. 裸跑模式: npm ci + pm2 reload ────────────
 else
-  echo "⚠ pm2 未安裝, 跳過重啟"
+  echo "▸ 更新依賴 (npm ci)..."
+  (cd "$ROOT" && npm ci --silent) || (cd "$ROOT/shared" && npm ci --silent && cd "$ROOT/web" && npm ci --silent)
+
+  echo "▸ 重生 ecosystem.config.js..."
+  node "$ROOT/scripts/generate-ecosystem.js"
+
+  if command -v pm2 >/dev/null; then
+    echo "▸ pm2 reload..."
+    if [[ -f "$ROOT/ecosystem.config.js" ]]; then
+      pm2 reload "$ROOT/ecosystem.config.js" 2>/dev/null || pm2 start "$ROOT/ecosystem.config.js"
+      pm2 save >/dev/null
+    else
+      echo "  (ecosystem.config.js 不存在, 跳過 — 尚無部門)"
+    fi
+  else
+    echo "⚠ pm2 未安裝, 跳過重啟. 手動處理."
+  fi
 fi
 
 echo ""
 echo "═══════════════════════════════════════════════════"
-echo "  ✓ 升級完成: $OLD_VERSION → $NEW_VERSION"
+echo "  ✓ 升級完成: $OLD_VERSION → $NEW_VERSION  [$MODE]"
 echo "═══════════════════════════════════════════════════"
 echo ""
 echo "備份: $BACKUP_DIR"

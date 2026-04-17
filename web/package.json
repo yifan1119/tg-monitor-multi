@@ -1,6 +1,6 @@
 {
   "name": "tg-monitor-multi-web",
-  "version": "0.2.1-mvp",
+  "version": "0.3.0-docker",
   "description": "Web dashboard for tg-monitor-multi",
   "private": true,
   "scripts": {

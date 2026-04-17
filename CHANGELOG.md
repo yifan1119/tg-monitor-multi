@@ -4,6 +4,63 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.3.0-docker] — 2026-04-17
+
+**Docker 化** — 主推部署方式改成 Docker, 大幅降低跨 OS / 跨 Node 版本的部署坑.
+裸跑模式保留作為進階選項.
+
+### 新增
+- `Dockerfile` — multi-stage build (Node 22 Alpine + python3/make/g++ builder + pm2@6)
+  - tini 作 PID 1 (信號轉發)
+  - pm2-runtime 跑 Web, 其他 tg-* 進程由 Web 動態 pm2 start 加載 (同 daemon)
+- `docker-compose.yml` — 單容器設計, 5 條 volume mount
+  - `depts/` / `global/` / `data/` / `secrets/google-sa.json` / `.backups/` / `.healthcheck/`
+  - healthcheck 每 30s curl /health
+- `.env.example` — docker-compose 層的非敏感配置範本 (WEB_PORT)
+- `install.sh` — 改成 Docker 一鍵裝 (裝 Docker + clone + up --build + 等 healthy)
+- `install-bare.sh` — 裸跑模式備胎 (原 install.sh 的 Node + PM2 + nvm 流程)
+- `docs/DEPLOY-DOCKER.md` — Docker 部署手冊 (主推)
+- `docs/DEPLOY-BARE.md` — 裸跑部署手冊 (進階)
+
+### 改動
+- `scripts/update.sh` — 自動偵測模式 (docker / bare), Docker 模式走 `docker compose up -d --build`
+  - 備份擴展: depts + data + global + **secrets** 四目錄全備
+  - 失敗時 container unhealthy 提示回滾
+- `scripts/rollback.sh` — 同步支援 Docker (git reset + docker compose rebuild)
+  - 預備份 rollback-safety 也擴展到 4 目錄
+  - 回滾後等 container healthy, 否則提示再回滾
+- `web/server.js` — 啟動時若 ecosystem.config.js 已有進程定義, 自動 `pm2 start`
+  - 容器重啟後既有部門進程自動拉起, 不需人工介入
+  - 環境變數 `TG_MONITOR_MULTI_DOCKER=1` 識別 Docker 環境
+- `.gitignore` — 加 secrets/ (除 .gitkeep) / .env (除 .env.example) / .healthcheck/
+- `README.md` — 改以 Docker 為主, 裸跑指向 docs/DEPLOY-BARE.md
+
+### 設計決策
+
+**單容器 vs 多容器**: 選單容器. N 部門 = 3N+2 進程, 多容器管理爆炸.
+同一 pm2 daemon 下, Web 的「重啟按鈕」直接呼叫 `pm2 restart` 即可, 不用走 docker.sock.
+
+**本地 build vs Docker Hub**: 選本地 build. 跟 Docker 版 tg-monitor-template 一致,
+不用維護 Docker Hub image, Private repo 配合 `build: .` 最簡單.
+
+**install.sh 不帶參數**: 對齊新的 setup wizard 體驗. 部門名 / port 在 Web 填.
+
+**裸跑保留作備胎**: 對齊用戶 「功能對齊, 部署方式看客戶方便」 原則.
+開發者 + 特殊需求用戶可選裸跑, 生產主推 Docker.
+
+### 本機驗證
+- `docker compose build` 通過 ✓
+- `docker run` 容器 6s healthy ✓
+- `/health` + `/setup` 都回 200 ✓
+- `bash -n` 所有 shell 腳本過 ✓
+
+### 未做 (留後續)
+- VPS 端乾淨實裝驗收 (需用戶提供可用 VPS credentials)
+- Docker Hub image 發布 (維持 `build: .` 路線)
+- Kubernetes helm chart (非必要)
+
+---
+
 ## [0.2.1-mvp] — 2026-04-17
 
 補齊 baseline 架構對齊 — 全局進程 + 健康檢查.

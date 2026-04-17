@@ -1,0 +1,62 @@
+# tg-monitor-multi — Docker Compose (主推部署方式)
+#
+# 用法:
+#   docker compose up -d --build        # 首次 / 升級後 rebuild
+#   docker compose logs -f              # 看 log
+#   docker compose restart              # 重啟容器
+#   docker compose down                 # 停止 (資料不刪, volume 保留)
+#   docker compose down -v              # 停止 + 清 volume (危險! 會刪 depts/)
+#
+# volumes (R3 契約: 升級絕不動):
+#   ./depts/                 ← 每部門 config / .env / session.txt / state/
+#   ./global/                ← 全局進程目錄
+#   ./data/                  ← 系統設置 (system.json)
+#   ./secrets/google-sa.json ← Google Service Account (單一檔案 mount)
+#   ./.backups/              ← update.sh 自動備份
+#   ./.healthcheck/          ← healthcheck log (若啟用)
+
+services:
+  tg-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tg-monitor-multi:local
+    container_name: tg-monitor-multi
+    restart: unless-stopped
+
+    ports:
+      - "${WEB_PORT:-5003}:5003"
+
+    volumes:
+      # 用戶資料 (絕不能進 image, volume mount 保留升級)
+      - ./depts:/app/depts
+      - ./global:/app/global
+      - ./data:/app/data
+      # Google SA 單檔 mount (install.sh 會先在 secrets/ 放佔位檔)
+      - ./secrets/google-service-account.json:/app/shared/google-service-account.json
+      # 備份 + 健康檢查 log
+      - ./.backups:/app/.backups
+      - ./.healthcheck:/app/.healthcheck
+
+    environment:
+      NODE_ENV: production
+      DATA_PROVIDER: real
+      WEB_PORT: 5003
+      TG_MONITOR_MULTI_DOCKER: "1"
+
+    # 若容器內 setup 要加 cron 健康檢查, 用宿主機的 pm2 直接跑, 這裡不需要
+    # (單容器自給自足, 不依賴宿主機 pm2)
+
+    # 記憶體限制 (避免失控吃光 VPS)
+    # 需要時取消註解:
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 4G
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5003/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s

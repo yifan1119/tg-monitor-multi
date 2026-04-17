@@ -8,55 +8,45 @@
 
 ---
 
-## 快速開始
+## 快速開始（Docker 主推）
 
-### 一鍵安裝（乾淨 VPS）
+### 一鍵裝
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh | bash
 ```
 
-預設裝在 `/opt/tg-monitor-multi`。想換位置：
+做完這些：裝 Docker → clone → build image → `docker compose up -d`。
 
-```bash
-INSTALL_DIR=~/tg-monitor bash install.sh
-```
+預設裝到 `/opt/tg-monitor-multi`。想換路徑：`INSTALL_DIR=~/tg-mm WEB_PORT=5003 bash install.sh`
 
-### 手動安裝
+### Setup 嚮導
 
-```bash
-git clone https://github.com/yifan1119/tg-monitor-multi.git
-cd tg-monitor-multi
-cd shared && npm ci && cd ..
-cd web && npm ci && cd ..
-```
+開瀏覽器 → `http://<vps-ip>:5003/setup` → 走 4 節：
 
-### 啟動 Web 後台
-
-```bash
-cd web && pm2 start server.js --name tg-monitor-web
-pm2 save
-pm2 startup   # 開機自啟（照提示跑一行 sudo 指令）
-```
-
-開瀏覽器 → `http://<your-vps-ip>:5003` → 走 **Setup Wizard** 填：
 1. Web 後台管理員帳密
 2. TG API ID/Hash（從 <https://my.telegram.org/apps> 取得）
 3. 上傳 Google Service Account JSON
-4. 第一個部門的中轉群名 + Google Sheet ID + 分頁名
+4. 第一個部門（代號 / 中轉群名 / Sheet ID / 分頁名）
 
-走完 Setup 後會自動建立第一個部門目錄。
+完成後自動建立 `depts/<第一個部門>/` 目錄。
 
-### 完成第一個部門
+### TG 登入 + 啟動
 
-Setup 建好目錄後，**最後一步要完成 TG 登入**：
+Dashboard → 點部門卡 → 「🔑 去登入 TG」 → 手機號 → 驗證碼 → （若有）2FA → `session.txt` 自動寫入。
 
-進入 `/depts/<name>/edit` → 點「🔑 去登入 TG」 → 填手機號 → 驗證碼 → （若有）2FA 密碼 → `session.txt` 自動寫入。
-
-然後回編輯頁點「▶ 啟動」，PM2 會啟動 3 個進程：
+然後點「▶ 啟動」，PM2 在容器內啟動 3 個進程：
 - `tg-listener-<name>` — 監聽所有業務群
 - `tg-system-events-<name>` — 監聽群系統事件
 - `tg-sheet-writer-<name>` — 寫 Google Sheet
+
+### 裸跑模式（進階）
+
+不想用 Docker 的可走 `install-bare.sh`（見 [docs/DEPLOY-BARE.md](docs/DEPLOY-BARE.md)）。
+
+完整部署文件：
+- Docker 模式：[docs/DEPLOY-DOCKER.md](docs/DEPLOY-DOCKER.md)
+- 裸跑模式：[docs/DEPLOY-BARE.md](docs/DEPLOY-BARE.md)
 
 ---
 
