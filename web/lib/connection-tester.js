@@ -6,6 +6,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const { translate } = require("./error-translator");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const GSA_PATH = path.join(ROOT, "shared", "google-service-account.json");
@@ -47,7 +48,7 @@ async function testGsa() {
       projectId: sa.project_id,
     };
   } catch (e) {
-    return { ok: false, error: e.message };
+    return { ok: false, error: translate(e) };
   }
 }
 
@@ -122,18 +123,12 @@ async function testSheetWrite({ spreadsheetId, sheetName }) {
       writtenRange: updatedRange,
     };
   } catch (e) {
-    let hint = "";
-    if (/permission|PERMISSION_DENIED|403/.test(e.message)) {
-      hint = " [提示: Sheet 要把 SA email 加为「编辑者」]";
-    } else if (/not found|404/i.test(e.message)) {
-      hint = " [提示: spreadsheetId 错误, 从 Sheet URL 取 /d/<这段>/edit]";
-    }
-    return { ok: false, error: e.message + hint };
+    return { ok: false, error: translate(e) };
   }
 }
 
 async function listSheetTabs({ spreadsheetId }) {
-  if (!spreadsheetId) return { ok: false, error: "缺少 spreadsheetId" };
+  if (!spreadsheetId) return { ok: false, error: "请填 Spreadsheet ID" };
   try {
     const { auth } = await getAuth();
     const { google } = require("googleapis");
@@ -151,10 +146,7 @@ async function listSheetTabs({ spreadsheetId }) {
       tabs,
     };
   } catch (e) {
-    let hint = "";
-    if (/permission|PERMISSION_DENIED|403/.test(e.message)) hint = " [Sheet 要把 SA email 加为编辑者]";
-    else if (/not found|404/i.test(e.message)) hint = " [spreadsheetId 错误]";
-    return { ok: false, error: e.message + hint };
+    return { ok: false, error: translate(e) };
   }
 }
 
