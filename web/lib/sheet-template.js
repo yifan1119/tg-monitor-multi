@@ -1,12 +1,10 @@
 // web/lib/sheet-template.js
 //
-// 自动初始化 Sheet 模板: 没分页 → 加分页, 有分页 → 清空重建.
-// 三种模板:
-//   keyword  — 关键字命中表 (dept worker 写)
-//   title    — 群名变更表 (dept worker 写, 可选)
-//   review   — 审查报告汇总表 (全局 review-report-writer 写)
+// 模板 = 可完全自定义的列清单. 每列指定:
+//   header (显示名) / field (绑的数据字段) / width (像素) / wrap (是否换行)
 //
-// 统一风格: 标题行 + 表头行 (冻结) + 斑马纹
+// 用户可自由增删/重排列. worker 按 columns 顺序写 row, 值从对应 field 取.
+// 自定义存 data/sheet-templates.json, 覆盖内建默认.
 
 "use strict";
 
@@ -16,7 +14,86 @@ const path = require("path");
 const ROOT = path.resolve(__dirname, "..", "..");
 const CUSTOM_FILE = path.join(ROOT, "data", "sheet-templates.json");
 
-// 读用户自定义 (若有) 覆盖默认模板
+// 样式
+const COLOR = {
+  title:       { red: 0.04, green: 0.12, blue: 0.22 },
+  titleText:   { red: 0.0,  green: 0.9,  blue: 1.0 },
+  header:      { red: 0.08, green: 0.18, blue: 0.30 },
+  headerText:  { red: 1.0,  green: 1.0,  blue: 1.0 },
+  zebra1:      { red: 1.0,  green: 1.0,  blue: 1.0 },
+  zebra2:      { red: 0.96, green: 0.98, blue: 1.0 },
+};
+
+// 内建模板
+const TEMPLATES = {
+  keyword: {
+    titleTemplate: "关键字命中记录 — {dept}",
+    titleRow: 1, headerRow: 2, dataStartRow: 3,
+    columns: [
+      { header: "编号",       field: "serialNo",       width: 70,  wrap: false },
+      { header: "来源群",     field: "sourceGroup",    width: 220, wrap: false },
+      { header: "发送人",     field: "senderName",     width: 160, wrap: false },
+      { header: "命中关键词", field: "keyword",        width: 130, wrap: false },
+      { header: "消息内容",   field: "messageContent", width: 480, wrap: true  },
+      { header: "登记时间",   field: "createdAt",      width: 170, wrap: false },
+    ],
+    availableFields: {
+      serialNo:       "自动序号",
+      sourceGroup:    "来源群名",
+      senderName:     "发送人 (TG 用户名)",
+      keyword:        "命中关键词",
+      messageContent: "消息内容摘要",
+      createdAt:      "登记时间 (系统当下)",
+      messageDate:    "消息实际时间 (TG)",
+      messageId:      "TG 消息 ID",
+      sourceGroupId:  "来源群 ID",
+    },
+  },
+  title: {
+    titleTemplate: "广告账号改名履历 — {dept}",
+    titleRow: 1, headerRow: 2, dataStartRow: 3,
+    columns: [
+      { header: "序号",     field: "serialNo",   width: 70,  wrap: false },
+      { header: "原群名",   field: "oldTitle",   width: 240, wrap: false },
+      { header: "新群名",   field: "newTitle",   width: 240, wrap: false },
+      { header: "变更时间", field: "createdAt",  width: 170, wrap: false },
+      { header: "操作人",   field: "senderName", width: 140, wrap: false },
+    ],
+    availableFields: {
+      serialNo:      "自动序号",
+      oldTitle:      "原群名",
+      newTitle:      "新群名",
+      createdAt:     "变更时间",
+      senderName:    "操作人 (发起变更的 TG 用户)",
+      sourceGroup:   "群当前名 (= 新群名)",
+      sourceGroupId: "群 ID",
+    },
+  },
+  review: {
+    titleTemplate: "审查报告汇总表",
+    titleRow: 1, headerRow: 2, dataStartRow: 3,
+    // review 列跟 baseline 的 insertRowAt3AndWrite 紧耦合 (A:reviewNo B:externalGroup ... M:闭环)
+    // 改列 = 改 baseline review_report_writer.js 逻辑, 风险大, 先不开放
+    columns: [
+      { header: "编号",           field: "reviewNo",         width: 140, wrap: false },
+      { header: "外部广告对接群", field: "externalGroup",    width: 220, wrap: false },
+      { header: "产品所属公司",   field: "company",          width: 160, wrap: false },
+      { header: "广告类型",       field: "adType",           width: 110, wrap: false },
+      { header: "广告主",         field: "advertiser",       width: 130, wrap: false },
+      { header: "对接商务",       field: "businessOwner",    width: 130, wrap: false },
+      { header: "对应外事号",     field: "externalOperator", width: 140, wrap: false },
+      { header: "问题情况说明",   field: "issueDesc",        width: 340, wrap: true  },
+      { header: "初步认定",       field: "initialFinding",   width: 340, wrap: true  },
+      { header: "登记时间",       field: "createdAt",        width: 170, wrap: false },
+      { header: "审查人",         field: "reviewer",         width: 110, wrap: false },
+      { header: "",               field: "_empty",           width: 60,  wrap: false },
+      { header: "闭环详情",       field: "closureDetail",    width: 340, wrap: true  },
+    ],
+    availableFields: {}, // 不可改 (baseline 耦合)
+    readOnly: true,
+  },
+};
+
 function loadCustom() {
   try {
     if (fs.existsSync(CUSTOM_FILE)) return JSON.parse(fs.readFileSync(CUSTOM_FILE, "utf8"));
@@ -32,32 +109,37 @@ function saveCustom(type, patch) {
   return all[type];
 }
 
-// 合并默认 + 用户自定义, 返回最终模板
+function renderTitle(tmpl, ctx) {
+  const raw = tmpl.titleTemplate || "";
+  return raw.replace(/\{dept\}/g, ctx.dept || "部门");
+}
+
+// 合并默认 + 自定义, 返回最终模板
 function getEffectiveTemplate(type, ctx = {}) {
   const base = TEMPLATES[type];
   if (!base) throw new Error(`未知模板类型: ${type}`);
   const custom = loadCustom()[type] || {};
-  // title 支持字串或 function
-  const titleFn = typeof custom.title === "string"
-    ? () => custom.title.replace(/\{dept\}/g, ctx.dept || "部门")
-    : base.title;
-  return {
+  const effective = {
     ...base,
-    title: titleFn,
-    headers: custom.headers || base.headers,
-    columnWidths: custom.columnWidths || base.columnWidths,
+    titleTemplate: custom.titleTemplate || base.titleTemplate,
+    columns: Array.isArray(custom.columns) && custom.columns.length > 0 ? custom.columns : base.columns,
   };
+  effective.title = renderTitle(effective, ctx);
+  return effective;
 }
-const GSA_PATH_CANDIDATES = [
+
+// ═════════════════════════════════════════════════════
+// Google Sheets 操作: 确保分页存在 + 应用模板
+// ═════════════════════════════════════════════════════
+
+const GSA_CANDIDATES = [
   path.join(ROOT, "shared", "google-service-account.json"),
   path.join(ROOT, "secrets", "google-service-account.json"),
 ];
-
 function findGsa() {
-  for (const p of GSA_PATH_CANDIDATES) if (fs.existsSync(p)) return p;
+  for (const p of GSA_CANDIDATES) if (fs.existsSync(p)) return p;
   throw new Error("找不到 google-service-account.json");
 }
-
 async function getSheets() {
   const { google } = require("googleapis");
   const auth = new google.auth.GoogleAuth({
@@ -67,63 +149,14 @@ async function getSheets() {
   return google.sheets({ version: "v4", auth });
 }
 
-// 颜色: 霓虹科技风对齐 Web UI
-const COLOR = {
-  title:       { red: 0.04, green: 0.12, blue: 0.22 },        // 深蓝底
-  titleText:   { red: 0.0,  green: 0.9,  blue: 1.0 },         // 青色字
-  header:      { red: 0.08, green: 0.18, blue: 0.30 },        // 中蓝底
-  headerText:  { red: 1.0,  green: 1.0,  blue: 1.0 },         // 白字
-  zebra1:      { red: 1.0,  green: 1.0,  blue: 1.0 },         // 白
-  zebra2:      { red: 0.96, green: 0.98, blue: 1.0 },         // 淡蓝白
-};
-
-const TEMPLATES = {
-  keyword: {
-    title: (ctx) => `关键字命中记录 — ${ctx.dept || "部门"}`,
-    headers: ["编号", "来源群", "发送人", "命中关键词", "消息内容", "登记时间"],
-    columnWidths: [70, 220, 160, 130, 480, 170],
-    wrapColumns: [4],
-    titleRow: 1,
-    blankRows: [],
-    headerRow: 2,
-    dataStartRow: 3,
-  },
-  title: {
-    title: (ctx) => `广告账号改名履历 — ${ctx.dept || "部门"}`,
-    headers: ["序号", "原群名", "新群名", "变更时间", "操作人"],
-    columnWidths: [70, 240, 240, 170, 140],
-    wrapColumns: [],
-    titleRow: 1,
-    blankRows: [],
-    headerRow: 2,
-    dataStartRow: 3,
-  },
-  review: {
-    title: () => "审查报告汇总表",
-    headers: [
-      "编号", "外部广告对接群", "产品所属公司", "广告类型", "广告主",
-      "对接商务", "对应外事号", "问题情况说明", "初步认定",
-      "登记时间", "审查人", "", "闭环详情",
-    ],
-    columnWidths: [140, 220, 160, 110, 130, 130, 140, 340, 340, 170, 110, 60, 340],
-    wrapColumns: [7, 8, 12], // 问题情况说明 / 初步认定 / 闭环详情
-    titleRow: 1,
-    blankRows: [],
-    headerRow: 2,
-    dataStartRow: 3,
-  },
-};
-
-// 主函数: 确保分页存在 + 应用模板
-// opts.onlyIfMissing = true → 已有标题 (说明模板已应用) 就跳过, 不覆盖
 async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMissing = false }) {
   if (!spreadsheetId || !sheetName) throw new Error("缺少 spreadsheetId 或 sheetName");
   if (!TEMPLATES[type]) throw new Error(`未知模板类型: ${type}`);
-  const tmpl = getEffectiveTemplate(type, { dept });
 
+  const tmpl = getEffectiveTemplate(type, { dept });
+  const colCount = tmpl.columns.length;
   const sheets = await getSheets();
 
-  // 1. 看分页是否存在
   const meta = await sheets.spreadsheets.get({
     spreadsheetId,
     fields: "properties.title,sheets.properties(title,sheetId)",
@@ -131,13 +164,9 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
   const existing = (meta.data.sheets || []).find(s => s.properties.title === sheetName);
   let sheetId;
 
-  // onlyIfMissing: 分页已存在 + 第 1 行有内容 → 认为模板已应用, 跳过
   if (existing && onlyIfMissing) {
     try {
-      const r = await sheets.spreadsheets.values.get({
-        spreadsheetId,
-        range: `${sheetName}!A1:A1`,
-      });
+      const r = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetName}!A1:A1` });
       if (r.data.values && r.data.values[0] && r.data.values[0][0]) {
         return { ok: true, skipped: true, reason: "template already applied", sheetName };
       }
@@ -147,65 +176,45 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
   if (existing) {
     sheetId = existing.properties.sheetId;
   } else {
-    // 加新分页
     const r = await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
-        requests: [{ addSheet: { properties: { title: sheetName, gridProperties: { rowCount: 1000, columnCount: Math.max(tmpl.headers.length, 10) } } } }],
+        requests: [{ addSheet: { properties: { title: sheetName, gridProperties: { rowCount: 1000, columnCount: Math.max(colCount, 10) } } } }],
       },
     });
     sheetId = r.data.replies[0].addSheet.properties.sheetId;
   }
 
-  const colCount = tmpl.headers.length;
-  const context = { dept };
-
-  // 2. 写标题行 (merge A1:颜色 B1 ... 到最后列)
   const requests = [];
 
-  // 清空已有的 merges (避免重叠错)
+  // 清 merges
   requests.push({
-    unmergeCells: {
-      range: { sheetId, startRowIndex: 0, endRowIndex: tmpl.dataStartRow - 1, startColumnIndex: 0, endColumnIndex: colCount },
-    },
+    unmergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: tmpl.dataStartRow - 1, startColumnIndex: 0, endColumnIndex: Math.max(colCount, 30) } },
   });
 
-  // 清空已有 banding
+  // 清 banding
   if (existing) {
-    // 先查已有 banding 删掉
     try {
-      const m2 = await sheets.spreadsheets.get({
-        spreadsheetId,
-        ranges: [sheetName],
-        fields: "sheets(bandedRanges(bandedRangeId))",
-      });
+      const m2 = await sheets.spreadsheets.get({ spreadsheetId, ranges: [sheetName], fields: "sheets(bandedRanges(bandedRangeId))" });
       const targetSheet = (m2.data.sheets || [])[0];
-      const existingBandings = targetSheet?.bandedRanges || [];
-      for (const b of existingBandings) {
+      for (const b of (targetSheet?.bandedRanges || [])) {
         requests.push({ deleteBanding: { bandedRangeId: b.bandedRangeId } });
       }
     } catch {}
   }
 
-  // Merge 标题行
+  // merge + 标题
   requests.push({
-    mergeCells: {
-      range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: colCount },
-      mergeType: "MERGE_ALL",
-    },
+    mergeCells: { range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: colCount }, mergeType: "MERGE_ALL" },
   });
-
-  // 标题行样式 + 文本
   requests.push({
     updateCells: {
       range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 },
       rows: [{
         values: [{
-          userEnteredValue: { stringValue: tmpl.title(context) },
+          userEnteredValue: { stringValue: tmpl.title },
           userEnteredFormat: {
-            backgroundColor: COLOR.title,
-            horizontalAlignment: "CENTER",
-            verticalAlignment: "MIDDLE",
+            backgroundColor: COLOR.title, horizontalAlignment: "CENTER", verticalAlignment: "MIDDLE",
             textFormat: { foregroundColor: COLOR.titleText, bold: true, fontSize: 14 },
           },
         }],
@@ -214,17 +223,15 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
     },
   });
 
-  // 表头行样式 + 文本
+  // 表头
   requests.push({
     updateCells: {
       range: { sheetId, startRowIndex: tmpl.headerRow - 1, endRowIndex: tmpl.headerRow, startColumnIndex: 0, endColumnIndex: colCount },
       rows: [{
-        values: tmpl.headers.map(h => ({
-          userEnteredValue: { stringValue: h },
+        values: tmpl.columns.map(c => ({
+          userEnteredValue: { stringValue: c.header },
           userEnteredFormat: {
-            backgroundColor: COLOR.header,
-            horizontalAlignment: "CENTER",
-            verticalAlignment: "MIDDLE",
+            backgroundColor: COLOR.header, horizontalAlignment: "CENTER", verticalAlignment: "MIDDLE",
             textFormat: { foregroundColor: COLOR.headerText, bold: true },
           },
         })),
@@ -233,64 +240,40 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
     },
   });
 
-  // 行高 (标题行高点)
-  requests.push({
-    updateDimensionProperties: {
-      range: { sheetId, dimension: "ROWS", startIndex: 0, endIndex: 1 },
-      properties: { pixelSize: 40 },
-      fields: "pixelSize",
-    },
-  });
-  requests.push({
-    updateDimensionProperties: {
-      range: { sheetId, dimension: "ROWS", startIndex: tmpl.headerRow - 1, endIndex: tmpl.headerRow },
-      properties: { pixelSize: 32 },
-      fields: "pixelSize",
-    },
-  });
+  // 行高
+  requests.push({ updateDimensionProperties: { range: { sheetId, dimension: "ROWS", startIndex: 0, endIndex: 1 }, properties: { pixelSize: 40 }, fields: "pixelSize" } });
+  requests.push({ updateDimensionProperties: { range: { sheetId, dimension: "ROWS", startIndex: tmpl.headerRow - 1, endIndex: tmpl.headerRow }, properties: { pixelSize: 32 }, fields: "pixelSize" } });
 
-  // 冻结标题行 + 表头行
-  requests.push({
-    updateSheetProperties: {
-      properties: { sheetId, gridProperties: { frozenRowCount: tmpl.headerRow } },
-      fields: "gridProperties.frozenRowCount",
-    },
-  });
+  // 冻结
+  requests.push({ updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: tmpl.headerRow } }, fields: "gridProperties.frozenRowCount" } });
 
-  // 斑马纹 (banding): 从 dataStartRow 开始到最后
+  // 斑马纹
   requests.push({
     addBanding: {
       bandedRange: {
-        range: {
-          sheetId,
-          startRowIndex: tmpl.dataStartRow - 1,
-          startColumnIndex: 0,
-          endColumnIndex: colCount,
-        },
-        rowProperties: {
-          firstBandColor: COLOR.zebra1,
-          secondBandColor: COLOR.zebra2,
-        },
+        range: { sheetId, startRowIndex: tmpl.dataStartRow - 1, startColumnIndex: 0, endColumnIndex: colCount },
+        rowProperties: { firstBandColor: COLOR.zebra1, secondBandColor: COLOR.zebra2 },
       },
     },
   });
 
-  // 显式列宽 (每列单独设, 比 autoResize 更可控)
-  (tmpl.columnWidths || []).forEach((w, idx) => {
+  // 列宽
+  tmpl.columns.forEach((c, idx) => {
     requests.push({
       updateDimensionProperties: {
         range: { sheetId, dimension: "COLUMNS", startIndex: idx, endIndex: idx + 1 },
-        properties: { pixelSize: w },
+        properties: { pixelSize: c.width || 120 },
         fields: "pixelSize",
       },
     });
   });
 
-  // 内容列开 word wrap (长文本自动换行, 不会挤一起也不会被截断)
-  (tmpl.wrapColumns || []).forEach((col) => {
+  // wrap
+  tmpl.columns.forEach((c, idx) => {
+    if (!c.wrap) return;
     requests.push({
       repeatCell: {
-        range: { sheetId, startRowIndex: tmpl.dataStartRow - 1, startColumnIndex: col, endColumnIndex: col + 1 },
+        range: { sheetId, startRowIndex: tmpl.dataStartRow - 1, startColumnIndex: idx, endColumnIndex: idx + 1 },
         cell: { userEnteredFormat: { wrapStrategy: "WRAP", verticalAlignment: "TOP" } },
         fields: "userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment",
       },
@@ -299,13 +282,13 @@ async function ensureTemplate({ spreadsheetId, sheetName, type, dept, onlyIfMiss
 
   await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests } });
 
-  return {
-    ok: true,
-    created: !existing,
-    sheetName,
-    headers: tmpl.headers,
-    spreadsheetTitle: meta.data.properties?.title,
-  };
+  return { ok: true, created: !existing, sheetName, columns: tmpl.columns, spreadsheetTitle: meta.data.properties?.title };
 }
 
-module.exports = { ensureTemplate, TEMPLATES, loadCustom, saveCustom, getEffectiveTemplate };
+module.exports = {
+  TEMPLATES,
+  loadCustom,
+  saveCustom,
+  getEffectiveTemplate,
+  ensureTemplate,
+};

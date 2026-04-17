@@ -197,61 +197,120 @@ async function getSheetMeta(spreadsheetId, targetSheetName) {
   return result;
 }
 
-// 关键字 Sheet: 写一行, 数据从第 3 行开始 (行 1 标题 + 行 2 表头)
+// 读 data/sheet-templates.json 的自定义列 (worker 需要知道列顺序 + field 映射)
+function loadCustomTemplate(type) {
+  try {
+    const p = path.join(ROOT, "data", "sheet-templates.json");
+    if (!fs.existsSync(p)) return null;
+    const all = JSON.parse(fs.readFileSync(p, "utf8"));
+    return all[type] || null;
+  } catch { return null; }
+}
+
+const DEFAULT_KEYWORD_COLUMNS = [
+  { header: "编号",       field: "serialNo",       width: 70  },
+  { header: "来源群",     field: "sourceGroup",    width: 220 },
+  { header: "发送人",     field: "senderName",     width: 160 },
+  { header: "命中关键词", field: "keyword",        width: 130 },
+  { header: "消息内容",   field: "messageContent", width: 480 },
+  { header: "登记时间",   field: "createdAt",      width: 170 },
+];
+const DEFAULT_TITLE_COLUMNS = [
+  { header: "序号",     field: "serialNo",   width: 70  },
+  { header: "原群名",   field: "oldTitle",   width: 240 },
+  { header: "新群名",   field: "newTitle",   width: 240 },
+  { header: "变更时间", field: "createdAt",  width: 170 },
+  { header: "操作人",   field: "senderName", width: 140 },
+];
+
+function getColumns(type) {
+  const custom = loadCustomTemplate(type);
+  if (custom && Array.isArray(custom.columns) && custom.columns.length > 0) return custom.columns;
+  return type === "keyword" ? DEFAULT_KEYWORD_COLUMNS : DEFAULT_TITLE_COLUMNS;
+}
+
+// 把 data 对象按 columns 顺序展开成 row (一个数组)
+function buildRow(columns, data) {
+  return columns.map(c => {
+    const v = data[c.field];
+    return v === undefined || v === null ? "" : v;
+  });
+}
+
+// 列号 idx → A1 notation 字母
+function colLetter(idx) {
+  let n = idx;
+  let s = "";
+  do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0);
+  return s;
+}
+
+// 找 columns 里 serialNo 字段所在列 (算序号用)
+function findSerialCol(columns) {
+  return columns.findIndex(c => c.field === "serialNo");
+}
+
+// 关键字 Sheet: 根据 columns 动态写
 async function writeKeywordRow(data) {
   const { spreadsheetId, sheetName } = config.keywordSheet || {};
   if (!spreadsheetId || !sheetName) return;
 
+  const columns = getColumns("keyword");
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
+  const lastColLetter = colLetter(columns.length - 1);
 
-  // 去重: 扫 B3:E
-  const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!B3:E`,
-  });
-  const targetKey = [data.sourceGroup, data.senderName, data.keyword, data.messageContent]
-    .map(normalizeText).join("||");
-  for (const row of (existing.data.values || [])) {
-    const rowKey = [row?.[0] || "", row?.[1] || "", row?.[2] || "", row?.[3] || ""]
-      .map(normalizeText).join("||");
-    if (rowKey === targetKey) {
-      console.log(`跳过重复登记 -> ${data.sourceGroup} | ${data.senderName} | ${data.keyword}`);
-      return;
+  // 去重 key: 取 sourceGroup + senderName + keyword + messageContent (只要这 4 个在列里, 按列值 combine)
+  const dedupeFields = ["sourceGroup", "senderName", "keyword", "messageContent"];
+  const dedupeCols = dedupeFields
+    .map(f => columns.findIndex(c => c.field === f))
+    .filter(i => i >= 0);
+
+  if (dedupeCols.length > 0) {
+    const firstC = colLetter(Math.min(...dedupeCols));
+    const lastC  = colLetter(Math.max(...dedupeCols));
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${sheetTitle}!${firstC}3:${lastC}`,
+    });
+    const offset = Math.min(...dedupeCols);
+    const targetVals = dedupeCols.map(ci => normalizeText(data[columns[ci].field] || ""));
+    const targetKey = targetVals.join("||");
+    for (const row of (existing.data.values || [])) {
+      const rowVals = dedupeCols.map(ci => normalizeText(row[ci - offset] || ""));
+      if (rowVals.join("||") === targetKey) {
+        console.log(`跳过重复登记 -> ${data.sourceGroup} | ${data.keyword}`);
+        return;
+      }
     }
   }
 
-  // 算序号 (A3:A 最大值 + 1)
-  const noRes = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!A3:A`,
-  });
-  let maxNo = 0;
-  for (const row of (noRes.data.values || [])) {
-    const n = Number(row?.[0] || 0);
-    if (!Number.isNaN(n) && n > maxNo) maxNo = n;
+  // 算序号 (如果有 serialNo 列)
+  const serialIdx = findSerialCol(columns);
+  if (serialIdx >= 0) {
+    const sc = colLetter(serialIdx);
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
+    let maxNo = 0;
+    for (const row of (noRes.data.values || [])) {
+      const n = Number(row?.[0] || 0);
+      if (!Number.isNaN(n) && n > maxNo) maxNo = n;
+    }
+    data.serialNo = maxNo + 1;
   }
-  const nextNo = maxNo + 1;
 
-  // 插入第 3 行 + 写入
+  // 插入第 3 行
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
     requestBody: {
-      requests: [{
-        insertDimension: {
-          range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 },
-          inheritFromBefore: false,
-        },
-      }],
+      requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }],
     },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!A3:F3`,
+    range: `${sheetTitle}!A3:${lastColLetter}3`,
     valueInputOption: "RAW",
-    requestBody: {
-      values: [[nextNo, data.sourceGroup, data.senderName, data.keyword, data.messageContent, data.createdAt]],
-    },
+    requestBody: { values: [buildRow(columns, data)] },
   });
 
-  console.log(`✓ keyword 已写 → #${nextNo} | ${data.sourceGroup} | ${data.keyword}`);
+  console.log(`✓ keyword 已写 → #${data.serialNo || "?"} | ${data.sourceGroup} | ${data.keyword}`);
 }
 
 // 群名变更 Sheet: 写一行 [ , 原群名, 新群名, ...]
@@ -260,37 +319,50 @@ async function writeTitleChangeRow(data) {
   const { spreadsheetId, sheetName } = config.titleSheet;
   if (!spreadsheetId || !sheetName) return;
 
+  const columns = getColumns("title");
   const { sheetId, sheetTitle } = await getSheetMeta(spreadsheetId, sheetName);
+  const lastColLetter = colLetter(columns.length - 1);
 
-  // 去重: 扫 B3:C (原群名/新群名)
-  const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId, range: `${sheetTitle}!B3:C`,
-  });
-  const targetKey = [data.oldTitle, data.newTitle].map(normalizeText).join("||");
-  for (const row of (existing.data.values || [])) {
-    const rowKey = [row?.[0] || "", row?.[1] || ""].map(normalizeText).join("||");
-    if (rowKey === targetKey) {
-      console.log(`跳过重复群名变更 -> ${data.oldTitle} → ${data.newTitle}`);
-      return;
+  // 去重: oldTitle + newTitle
+  const oldIdx = columns.findIndex(c => c.field === "oldTitle");
+  const newIdx = columns.findIndex(c => c.field === "newTitle");
+  if (oldIdx >= 0 && newIdx >= 0) {
+    const a = colLetter(Math.min(oldIdx, newIdx));
+    const b = colLetter(Math.max(oldIdx, newIdx));
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${a}3:${b}` });
+    const tKey = normalizeText(data.oldTitle || "") + "||" + normalizeText(data.newTitle || "");
+    const offset = Math.min(oldIdx, newIdx);
+    for (const row of (existing.data.values || [])) {
+      const rKey = normalizeText(row[oldIdx - offset] || "") + "||" + normalizeText(row[newIdx - offset] || "");
+      if (rKey === tKey) { console.log(`跳过重复群名变更`); return; }
     }
   }
 
+  // serial
+  const serialIdx = findSerialCol(columns);
+  if (serialIdx >= 0) {
+    const sc = colLetter(serialIdx);
+    const noRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: `${sheetTitle}!${sc}3:${sc}` });
+    let maxNo = 0;
+    for (const row of (noRes.data.values || [])) {
+      const n = Number(row?.[0] || 0);
+      if (!Number.isNaN(n) && n > maxNo) maxNo = n;
+    }
+    data.serialNo = maxNo + 1;
+  }
+
+  // 默认 createdAt
+  if (!data.createdAt) data.createdAt = new Date().toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" });
+
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId,
-    requestBody: {
-      requests: [{
-        insertDimension: {
-          range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 },
-          inheritFromBefore: false,
-        },
-      }],
-    },
+    requestBody: { requests: [{ insertDimension: { range: { sheetId, dimension: "ROWS", startIndex: 2, endIndex: 3 }, inheritFromBefore: false } }] },
   });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${sheetTitle}!B3:C3`,
+    range: `${sheetTitle}!A3:${lastColLetter}3`,
     valueInputOption: "RAW",
-    requestBody: { values: [[data.oldTitle, data.newTitle]] },
+    requestBody: { values: [buildRow(columns, data)] },
   });
 
   console.log(`✓ title 已写 → ${data.oldTitle} → ${data.newTitle}`);
@@ -461,14 +533,17 @@ async function handleMessage(message) {
     await client.sendMessage(outputEntity, { message: pushText }).catch(e => console.error("推中转群失败:", e.message));
   }
 
-  // 写 keyword Sheet (每个命中一行)
+  // 写 keyword Sheet (每个命中一行) — Sheet 里存完整消息, 不截断
   for (const kw of allowed) {
     const data = {
       sourceGroup: chatInfo.name,
+      sourceGroupId: peerId,
       senderName: operatorName,
       keyword: kw,
-      messageContent: shortText(text),
+      messageContent: normalizeText(text),  // 完整消息 (中转群推送用的 shortText 只影响 TG 不影响 Sheet)
       createdAt: new Date().toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }),
+      messageDate: message.date ? new Date(message.date * 1000).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) : "",
+      messageId: message.id?.toString?.() || "",
     };
     writeWithRetry("keyword", data).catch(() => {});
   }
