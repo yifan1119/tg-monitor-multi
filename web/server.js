@@ -229,7 +229,7 @@ app.get("/dashboard", async (_req, res) => {
   const globalProcsOnline = procs.filter(p => globalKinds.some(k => p.name === `tg-${k}`) && p.status === "online").length;
   const globalsBuilt = listGlobals().length;
   const deptProcsOnline = procs.filter(p => p.dept && p.dept !== "_global" && p.status === "online").length;
-  const deptProcsTotal = depts.length * 3;
+  const deptProcsTotal = depts.length * 1; // v0.4: 每部门 1 个 worker
   const healthcheck = readHealthcheckStatus();
   const backupList = updateManager.listBackups();
   const lastBackup = backupList[0] || null;
@@ -898,7 +898,7 @@ app.post("/settings/global/:kind/login/copy",     (req, res) => {
 // ─── 日志读取 API ─────────────────────────────
 const logReader = require("./lib/log-reader");
 
-const DEPT_KINDS = ["listener", "system-events", "sheet-writer"];
+const DEPT_KINDS = ["worker", "listener", "system-events", "sheet-writer"]; // worker=v0.4, 其余保留读旧 log
 const ALLOWED_GLOBAL_KINDS = GLOBAL_KINDS; // 从 new-global.js 导入的
 
 app.get("/api/logs/dept/:name/:kind", (req, res) => {

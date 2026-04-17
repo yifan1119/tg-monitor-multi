@@ -39,9 +39,7 @@
             <th>部门</th>
             <th>中转群</th>
             <th>Sheet 分页</th>
-            <th>Listener</th>
-            <th>Sys-Events</th>
-            <th>Sheet-Writer</th>
+            <th>Worker</th>
             <th>Session</th>
             <th>24h 命中</th>
             <th>操作</th>
@@ -49,9 +47,7 @@
         </thead>
         <tbody>
           <% depts.forEach(d => {
-            const listener    = procs.find(p => p.dept === d.name && p.kind === 'listener');
-            const systemEv    = procs.find(p => p.dept === d.name && p.kind === 'system-events');
-            const sheetWriter = procs.find(p => p.dept === d.name && p.kind === 'sheet-writer');
+            const worker = procs.find(p => p.dept === d.name && p.kind === 'worker');
             const dotFor = p => `<span class="dot ${p && p.status === 'online' ? 'green' : p && p.status === 'stopped' ? 'yellow' : 'red'}"></span>`;
           %>
             <tr>
@@ -61,9 +57,7 @@
               </td>
               <td><%= d.outputChat %></td>
               <td><%= d.sheetTab %></td>
-              <td><%- dotFor(listener) %><%= listener ? listener.status : '—' %></td>
-              <td><%- dotFor(systemEv) %><%= systemEv ? systemEv.status : '—' %></td>
-              <td><%- dotFor(sheetWriter) %><%= sheetWriter ? sheetWriter.status : '—' %></td>
+              <td><%- dotFor(worker) %><%= worker ? worker.status : '未启动' %></td>
               <td>
                 <% if (d.sessionOk) { %>
                   <span class="dot green"></span>OK

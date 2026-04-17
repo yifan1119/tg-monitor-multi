@@ -70,7 +70,7 @@ async function realListProcesses() {
               .filter(p => p.name && p.name.startsWith("tg-"))
               .map(p => {
                 const name = p.name;
-                const m = name.match(/^tg-(listener|system-events|sheet-writer|title-sheet-writer|review-report-writer)-?(.+)?$/);
+                const m = name.match(/^tg-(worker|listener|system-events|sheet-writer|title-sheet-writer|review-report-writer)-?(.+)?$/);
                 const kind = m ? m[1] : "unknown";
                 const dept = m && m[2] ? m[2] : "_global";
                 return {

@@ -31,11 +31,11 @@
         <tr><th>类型</th><th>名称</th><th>状态</th><th>CPU</th><th>RAM</th><th>重启</th><th>Uptime</th></tr>
       </thead>
       <tbody>
-        <% ["listener","system-events","sheet-writer"].forEach(k => {
+        <% ["worker"].forEach(k => {
           const p = procs.find(x => x.kind === k);
         %>
           <tr>
-            <td><%= k %></td>
+            <td>worker</td>
             <td><code>tg-<%= k %>-<%= dept.name %></code></td>
             <% if (p) { %>
               <td class="status-<%= p.status %>">● <%= p.status %></td>
@@ -262,9 +262,5 @@
 
 <%- include('../partials/log-panel', {
   apiBase: `/api/logs/dept/${dept.name}`,
-  kinds: [
-    { id: 'listener',      label: 'listener' },
-    { id: 'system-events', label: 'system-events' },
-    { id: 'sheet-writer',  label: 'sheet-writer' },
-  ]
+  kinds: [ { id: 'worker', label: 'worker' } ]
 }) %>

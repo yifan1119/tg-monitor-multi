@@ -4,6 +4,56 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.4.0-docker] — 2026-04-17
+
+**合并架构** — 每部门 3 进程 → 1 worker, 全局 2 砍 1. **进程 29→10, TG 号 20→10**.
+
+### 设计原则
+业务功能 0 丢失, 只优化底层结构.
+
+### 新增
+- **`shared/worker.js`** (三合一) — 每部门 1 个 worker 合并原 listener + system-events + sheet-writer:
+  - 监听业务群消息 → 命中关键字 → 推中转群 + 直接写 keywordSheet
+  - 群名变更 (event + 文本两种形式) → 推中转群 + 写 titleSheet (若配)
+  - **不需要订阅中转群作 IPC** — 命中直接写 Sheet, 中转群只做人类可见提醒
+  - 写 Sheet 失败 → retry 3 次 → 仍失败落盘 `state/pending-writes.jsonl`, 每 60s 重试
+  - 每 60s backfill 扫业务群最近 30 条 (防 event stream 漏)
+  - v1 config.json 自动 migration 到 v2 schema (旧 spreadsheetId/sheetName → keywordSheet{...})
+- **titleSheet 可选新字段** — 想把群名变更也写 Sheet 的话在 config 加 `titleSheet: {spreadsheetId, sheetName}`
+
+### 改动
+- `scripts/generate-ecosystem.js`: `DEPT_KINDS = [{kind: "worker"}]` (从 3 类改 1 类)
+- `scripts/new-global.js`: `KINDS = ["review-report-writer"]` (砍 title-sheet-writer)
+- Web UI: 部门列表 / 编辑页 / 日志面板 从 3 进程改成 1 worker
+- Dashboard 健康灯: 部门总进程数 = 部门数 × 1 (从 × 3 改)
+- `data-provider.js`: 识别 `tg-worker-*` 进程名
+
+### 砍掉
+- **`title-sheet-writer` 全局进程** — 每个 dept worker 自己写群名变更到本部门 Sheet, 不再需要跨部门订阅分流
+- **号 B / 号 C** (每部门 sheet-writer 号 + 全局 title 号)
+- baseline 每部门 3 份 session.txt → **1 份**
+
+### 保留
+- **`review-report-writer` 全局进程** — 跨部门审查报告闭环配对 (代码按 reviewNo 全局找行, 不 check 来自哪个群, 业务功能真实存在)
+- 中转群 — 保留作**人类可见实时提醒**, 不再作 IPC 队列
+- 原 shared/listener.js / system_events_listener.js / sheet_writer.js / title_sheet_writer.js — 保留在仓库 (R 契约兼容), 不被 ecosystem 调用
+
+### 兼容
+- 旧 config.json (v1 schema) 由 worker loadConfig() 自动映射到 v2, 无需人工迁移
+- v0.3.x 已建立的 depts/ + global/ 目录继续能用
+
+### 数字对比
+
+| | v0.3.4 | v0.4.0 | 节省 |
+|---|---|---|---|
+| 每部门进程数 | 3 | 1 | -67% |
+| 9 部门 + 全局总进程 | 29 | 10 | -65% |
+| 每部门 TG 号 | 2 | 1 | -50% |
+| 9 部门 + 全局总号数 | 20 | 10 | -50% |
+| 每部门登入次数 | 3 | 1 | -67% |
+
+---
+
 ## [0.3.4-docker] — 2026-04-17
 
 **零 CLI 系列 #3** — TG 群下拉 · 关键字预览 · Dashboard 健康摘要.

@@ -28,14 +28,15 @@ const SHARED_DIR = path.join(ROOT, "shared");
 const DEPTS_DIR = path.join(ROOT, "depts");
 const GLOBAL_DIR = path.join(ROOT, "global");
 
+// v0.4: 每部门只剩 1 个 worker (listener + system-events + sheet-writer 三合一).
+// 旧的 DEPT_KINDS (3 进程) 删除, 仅保留 worker.
 const DEPT_KINDS = [
-  { kind: "listener",      script: "listener.js" },
-  { kind: "system-events", script: "system_events.js" },
-  { kind: "sheet-writer",  script: "sheet_writer.js" },
+  { kind: "worker", script: "worker.js" },
 ];
 
+// v0.4: title-sheet-writer 砍掉 (每个 worker 自己写 titleSheet),
+// 仅保留 review-report-writer (跨部门闭环配对需要全局号订阅).
 const GLOBAL_KINDS = [
-  { kind: "title-sheet-writer",   script: "title_sheet_writer.js" },
   { kind: "review-report-writer", script: "review_report_writer.js" },
 ];
 
@@ -102,7 +103,7 @@ function serialize(config) {
     "// ecosystem.config.js",
     "// 自动生成 — 勿手动编辑。重跑: node scripts/generate-ecosystem.js",
     `// 生成时间: ${new Date().toISOString()}`,
-    `// 部门: ${config.deptCount} 个 × 3 类 + 全局: ${config.globalCount} 个 = ${config.apps.length} 个进程`,
+    `// 部门: ${config.deptCount} 个 × 1 worker + 全局: ${config.globalCount} 个 = ${config.apps.length} 个进程`,
     "",
     "module.exports = ",
   ].join("\n");
@@ -110,9 +111,8 @@ function serialize(config) {
 }
 
 function summary(config) {
-  const deptProcs = config.deptCount * 3;
   const parts = [
-    `${config.deptCount} 部门 × 3 类 = ${deptProcs}`,
+    `${config.deptCount} 部门 × 1 worker = ${config.deptCount}`,
   ];
   if (config.globalCount > 0) parts.push(`${config.globalCount} 全局`);
   return `${parts.join(" + ")} = ${config.apps.length} 个进程`;
