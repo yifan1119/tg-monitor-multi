@@ -1,0 +1,90 @@
+<% /* 用法: include('../partials/log-panel', { apiBase: '/api/logs/dept/yueda', kinds: [{id:'listener',label:'listener'}, ...] }) */ %>
+<div class="panel">
+  <div class="panel-title">📜 实时日志</div>
+  <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap;">
+    <div style="font-size: 0.75rem; color: var(--text-dim);">进程:</div>
+    <% kinds.forEach((k, i) => { %>
+      <button type="button" class="log-tab btn ghost"
+              data-kind="<%= k.id %>"
+              style="padding: 0.3rem 0.7rem; font-size: 0.75rem;<% if (i === 0) { %>background:rgba(0,230,255,0.1);border-color:var(--accent);color:var(--accent);<% } %>"
+              onclick="logPanel.selectKind(this, '<%= k.id %>')"><%= k.label %></button>
+    <% }); %>
+    <div style="flex: 1;"></div>
+    <div style="font-size: 0.75rem; color: var(--text-dim);">类型:</div>
+    <button type="button" class="log-type-btn btn ghost" data-type="out"
+            style="padding: 0.3rem 0.7rem; font-size: 0.75rem; background:rgba(0,255,149,0.1); border-color: var(--green); color: var(--green);"
+            onclick="logPanel.selectType(this, 'out')">stdout</button>
+    <button type="button" class="log-type-btn btn ghost" data-type="err"
+            style="padding: 0.3rem 0.7rem; font-size: 0.75rem;"
+            onclick="logPanel.selectType(this, 'err')">stderr</button>
+    <label style="font-size: 0.75rem; color: var(--text-dim); display: flex; align-items: center; gap: 0.3rem; cursor: pointer;">
+      <input type="checkbox" id="log-autorefresh" onchange="logPanel.toggleAutoRefresh(this.checked)" checked> 自动刷新 3s
+    </label>
+    <button type="button" class="btn ghost" style="padding: 0.3rem 0.7rem; font-size: 0.75rem;" onclick="logPanel.refresh()">↻ 刷新</button>
+  </div>
+  <div id="log-meta" style="font-size: 0.7rem; color: var(--text-dim); margin-bottom: 0.4rem;">—</div>
+  <pre id="log-output" style="background: rgba(7, 10, 21, 0.7); padding: 0.8rem; border-radius: 6px; font-size: 0.72rem; color: var(--text-1); overflow: auto; line-height: 1.5; margin: 0; max-height: 400px; min-height: 200px; white-space: pre-wrap; word-break: break-all;">正在载入...</pre>
+</div>
+<script>
+  (function() {
+    const API_BASE = <%- JSON.stringify(apiBase) %>;
+    const KINDS = <%- JSON.stringify(kinds.map(k => k.id)) %>;
+    let currentKind = KINDS[0];
+    let currentType = "out";
+    let autoRefresh = true;
+    let timer = null;
+
+    async function refresh() {
+      const url = `${API_BASE}/${currentKind}?type=${currentType}&lines=150&_=${Date.now()}`;
+      try {
+        const r = await fetch(url).then(r => r.json());
+        const out = document.getElementById("log-output");
+        const meta = document.getElementById("log-meta");
+        if (r.error) {
+          out.textContent = "API 错误: " + r.error;
+          meta.textContent = "";
+          return;
+        }
+        if (!r.exists) {
+          out.textContent = "(日志文件还不存在 — 进程可能还没启动过)";
+          meta.textContent = r.file;
+          return;
+        }
+        const content = (r.lines || []).join("\n");
+        const atBottom = out.scrollTop + out.clientHeight >= out.scrollHeight - 20;
+        out.textContent = content || "(日志为空)";
+        if (atBottom) out.scrollTop = out.scrollHeight;
+        const sizeKb = (r.totalBytes / 1024).toFixed(1);
+        meta.textContent = `${r.file} · ${sizeKb} KB · ${r.truncated ? '(只显示尾部 256KB) · ' : ''}更新时间 ${new Date(r.mtime).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" })}`;
+      } catch (e) {
+        document.getElementById("log-output").textContent = "载入失败: " + e.message;
+      }
+    }
+
+    function selectKind(btn, kind) {
+      currentKind = kind;
+      document.querySelectorAll(".log-tab").forEach(b => b.style.cssText = "padding: 0.3rem 0.7rem; font-size: 0.75rem;");
+      btn.style.cssText = "padding: 0.3rem 0.7rem; font-size: 0.75rem; background:rgba(0,230,255,0.1); border-color: var(--accent); color: var(--accent);";
+      refresh();
+    }
+    function selectType(btn, type) {
+      currentType = type;
+      document.querySelectorAll(".log-type-btn").forEach(b => b.style.cssText = "padding: 0.3rem 0.7rem; font-size: 0.75rem;");
+      if (type === "err") {
+        btn.style.cssText = "padding: 0.3rem 0.7rem; font-size: 0.75rem; background:rgba(255,59,92,0.1); border-color: var(--red); color: var(--red);";
+      } else {
+        btn.style.cssText = "padding: 0.3rem 0.7rem; font-size: 0.75rem; background:rgba(0,255,149,0.1); border-color: var(--green); color: var(--green);";
+      }
+      refresh();
+    }
+    function toggleAutoRefresh(on) {
+      autoRefresh = on;
+      if (timer) { clearInterval(timer); timer = null; }
+      if (on) timer = setInterval(() => { if (autoRefresh) refresh(); }, 3000);
+    }
+
+    window.logPanel = { refresh, selectKind, selectType, toggleAutoRefresh };
+    refresh();
+    timer = setInterval(() => { if (autoRefresh) refresh(); }, 3000);
+  })();
+</script>

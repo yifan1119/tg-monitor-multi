@@ -4,6 +4,32 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.3.3-docker] — 2026-04-17
+
+**零 CLI 系列 #2** — 实时日志 · 部门复制 · 连线测试.
+
+### 新增
+- **实时日志面板** — `/depts/:name/edit` + `/settings/global/:kind/edit` 底部
+  - 读 `state/<kind>.out.log` / `state/<kind>.error.log` 尾部 (只读 256KB 防 OOM)
+  - 标签切换不同进程 (listener / system-events / sheet-writer)
+  - stdout / stderr 切换, 3 秒自动刷新 (可关)
+  - 自动跟随新行 (除非用户手动上滚查看历史)
+  - `web/lib/log-reader.js` 新增
+  - `web/templates/partials/log-panel.ejs` 新增 (dept 和 global 共用)
+  - `GET /api/logs/dept/:name/:kind?type=out|err&lines=150`
+  - `GET /api/logs/global/:kind?type=out|err&lines=150`
+- **复制部门快捷按钮** — 部门列表每行 + 「📋 复制」
+  - `/depts/new?template=<name>` 从该部门读 config 预填表单 (除 dept_name 外)
+  - 顶部提示「正以 xxx 为模板」
+- **连线测试按钮**:
+  - 部门编辑页 Sheet 下 + 「🧪 测试 Sheet 写入」: 写一行 + 立刻删掉 + 回报成功/失败
+  - 全局 review-report-writer 编辑页同样有
+  - 系统设置 · Google SA 栏 + 「🧪 测试连线」: 调 drive.about.get 回报 OK
+  - `web/lib/connection-tester.js` 新增
+  - `POST /api/test/sheet` + `POST /api/test/gsa`
+
+---
+
 ## [0.3.2-docker] — 2026-04-17
 
 **零 CLI 系列 #1** — session 复用 + Web 一键升级回滚 + ecosystem 自启对齐.

@@ -72,8 +72,9 @@
                 <% } %>
               </td>
               <td><strong style="color:var(--accent);"><%= d.hit24h %></strong></td>
-              <td>
-                <a href="/depts/<%= d.name %>/edit" class="btn ghost" style="padding: 0.35rem 0.75rem; font-size: 0.7rem;">编辑</a>
+              <td style="white-space: nowrap;">
+                <a href="/depts/<%= d.name %>/edit" class="btn ghost" style="padding: 0.35rem 0.7rem; font-size: 0.7rem;">编辑</a>
+                <a href="/depts/new?template=<%= d.name %>" class="btn ghost" style="padding: 0.35rem 0.6rem; font-size: 0.7rem;" title="以此部门为模板新建">📋 复制</a>
               </td>
             </tr>
           <% }); %>

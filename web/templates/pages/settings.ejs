@@ -135,6 +135,22 @@
       <tr><td style="color: var(--text-dim);">Google SA</td><td>
         <% if (systemInfo.gsaExists) { %>
           <span class="dot green"></span><%= systemInfo.gsaEmail %>
+          <button type="button" class="btn ghost" style="padding:0.2rem 0.6rem;font-size:0.7rem;margin-left:0.5rem;" onclick="testGsa()">🧪 测试连线</button>
+          <span id="gsa-test-result" style="margin-left:0.5rem;font-size:0.75rem;"></span>
+          <script>
+            async function testGsa() {
+              const out = document.getElementById("gsa-test-result");
+              out.innerHTML = '测试中...';
+              try {
+                const r = await fetch("/api/test/gsa", { method: "POST" }).then(r => r.json());
+                if (r.ok) {
+                  out.innerHTML = '<span style="color:var(--green);">✓ 连线 OK</span> <span style="color:var(--text-dim);">(project: ' + r.projectId + ')</span>';
+                } else {
+                  out.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>';
+                }
+              } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
+            }
+          </script>
         <% } else { %>
           <span class="dot yellow"></span>未设置 (到 /setup 上传)
         <% } %>

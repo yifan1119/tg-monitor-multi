@@ -262,17 +262,33 @@ function placeholder(title, subtitle, stage, description) {
 }
 
 // ─── 新增部门（GET 表单 + POST 建目录）────────────────
-function renderDeptNew(res, { error = null, formData = {} } = {}, status = 200) {
+function renderDeptNew(res, { error = null, formData = {}, templateFrom = null } = {}, status = 200) {
   res.status(status).render("pages/dept-new", {
     title: "新增部门",
     active: "depts",
     error,
     formData,
+    templateFrom,
   });
 }
 
-app.get("/depts/new", (_req, res) => {
-  renderDeptNew(res);
+app.get("/depts/new", (req, res) => {
+  // ?template=<existing-dept-name> → 从该部门复制 config 作起始值 (不复制 dept_name)
+  let formData = {};
+  let templateFrom = null;
+  if (req.query.template) {
+    const src = loadDeptForEdit(String(req.query.template));
+    if (src) {
+      templateFrom = src.name;
+      formData = {
+        dept_display: src.config.display || src.name,
+        output_chat: src.config.outputChatName || "",
+        spreadsheet_id: src.config.spreadsheetId || "",
+        sheet_tab: src.config.sheetName || "",
+      };
+    }
+  }
+  renderDeptNew(res, { formData, templateFrom });
 });
 
 app.post("/depts/new", async (req, res) => {
@@ -856,6 +872,41 @@ app.post("/settings/global/:kind/login/copy",     (req, res) => {
   if (!loadGlobalForEdit(kind)) return res.status(404).send("未建立");
   const target = tgLogin.makeTarget("global", kind);
   handleLoginFlow(target, { subLabel: `全局进程 · ${kind}` }).copy(req, res);
+});
+
+// ─── 日志读取 API ─────────────────────────────
+const logReader = require("./lib/log-reader");
+
+const DEPT_KINDS = ["listener", "system-events", "sheet-writer"];
+const ALLOWED_GLOBAL_KINDS = GLOBAL_KINDS; // 从 new-global.js 导入的
+
+app.get("/api/logs/dept/:name/:kind", (req, res) => {
+  const { name, kind } = req.params;
+  if (!DEPT_KINDS.includes(kind)) return res.status(400).json({ error: "kind 不合法" });
+  const type = req.query.type === "err" ? "err" : "out";
+  const lines = Math.min(Number(req.query.lines) || 100, 500);
+  const r = logReader.readTail({ scope: "dept", dept: name, kind, type, lines });
+  res.json(r);
+});
+
+app.get("/api/logs/global/:kind", (req, res) => {
+  const { kind } = req.params;
+  if (!ALLOWED_GLOBAL_KINDS.includes(kind)) return res.status(400).json({ error: "kind 不合法" });
+  const type = req.query.type === "err" ? "err" : "out";
+  const lines = Math.min(Number(req.query.lines) || 100, 500);
+  const r = logReader.readTail({ scope: "global", kind, type, lines });
+  res.json(r);
+});
+
+// ─── 连线测试 API ─────────────────────────────
+const connectionTester = require("./lib/connection-tester");
+
+app.post("/api/test/gsa", async (_req, res) => {
+  res.json(await connectionTester.testGsa());
+});
+app.post("/api/test/sheet", async (req, res) => {
+  const { spreadsheetId, sheetName } = req.body || {};
+  res.json(await connectionTester.testSheetWrite({ spreadsheetId, sheetName }));
 });
 
 // ─── 升级 / 回滚 ─────────────────────────────

@@ -9,6 +9,15 @@
   </div>
 </div>
 
+<% if (locals.templateFrom) { %>
+  <div class="panel" style="border-left: 3px solid var(--accent); background: rgba(0, 230, 255, 0.05);">
+    <div style="color: var(--accent); font-weight: 700; font-size: 0.85rem;">📋 以 <code><%= templateFrom %></code> 为模板</div>
+    <div style="color: var(--text-1); font-size: 0.8rem; margin-top: 0.3rem;">
+      中转群 / Sheet ID / 分页名称等都已预填为 <code><%= templateFrom %></code> 的值. 请修改成新部门的值 (不改保存会冲突).
+    </div>
+  </div>
+<% } %>
+
 <% if (locals.error) { %>
   <div class="panel" style="border-left: 3px solid var(--red); background: rgba(255, 59, 92, 0.06);">
     <div style="color: var(--red); font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem;">⚠ 新增失败</div>

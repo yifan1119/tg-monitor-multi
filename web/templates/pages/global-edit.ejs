@@ -185,14 +185,37 @@
     </div>
     <div class="form-group">
       <label>Spreadsheet ID</label>
-      <input type="text" name="spreadsheetId" value="<%= cfg.spreadsheetId || '' %>" placeholder="1lu4J3v9GsDO..." required>
+      <input type="text" id="fld-spreadsheetId" name="spreadsheetId" value="<%= cfg.spreadsheetId || '' %>" placeholder="1lu4J3v9GsDO..." required>
       <div class="hint">从 Sheet 网址 <code>/d/&lt;ID&gt;/edit</code> 取. Sheet 必须把 Google SA email 加为"编辑者"</div>
     </div>
     <div class="form-group">
       <label>工作表分页名称</label>
-      <input type="text" name="sheetName" value="<%= cfg.sheetName || '审查报告001' %>" required>
+      <input type="text" id="fld-sheetName" name="sheetName" value="<%= cfg.sheetName || '审查报告001' %>" required>
       <div class="hint">分页要先手动建好, 例: <code>审查报告001</code></div>
     </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+      <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="testSheetWrite()">🧪 测试 Sheet 写入</button>
+      <span id="sheet-test-result" style="font-size:0.78rem;color:var(--text-dim);"></span>
+    </div>
+    <script>
+      async function testSheetWrite() {
+        const out = document.getElementById("sheet-test-result");
+        const spreadsheetId = document.getElementById("fld-spreadsheetId").value.trim();
+        const sheetName = document.getElementById("fld-sheetName").value.trim();
+        if (!spreadsheetId || !sheetName) { out.innerHTML = '<span style="color:var(--red);">请先填 ID + 分页</span>'; return; }
+        out.innerHTML = '测试中...';
+        try {
+          const r = await fetch("/api/test/sheet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ spreadsheetId, sheetName }) }).then(r => r.json());
+          if (r.ok) {
+            out.innerHTML = '<span style="color:var(--green);">✓ 写入成功</span> <span style="color:var(--text-dim);">(' + r.sheetTitle + ', 测试行已清理)</span>';
+          } else {
+            let html = '<span style="color:var(--red);">✗ ' + r.error + '</span>';
+            if (r.availableTabs) html += '<br><span style="color:var(--text-dim);">可用分页: ' + r.availableTabs.join(", ") + '</span>';
+            out.innerHTML = html;
+          }
+        } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
+      }
+    </script>
   </div>
 
   <div class="panel">
@@ -239,3 +262,8 @@
     <button type="submit" class="btn">保存并重启</button>
   </div>
 </form>
+
+<%- include('../partials/log-panel', {
+  apiBase: `/api/logs/global`,
+  kinds: [ { id: kind, label: kind } ]
+}) %>
