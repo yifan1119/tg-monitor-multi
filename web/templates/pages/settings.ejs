@@ -1,8 +1,7 @@
-<% const HEALTHCHECK_COMMAND = "bash scripts/install-healthcheck.sh"; %>
 <div class="page-header">
   <div>
     <div class="page-title">系统设置</div>
-    <div class="page-subtitle">全局进程 · 健康检查 · 系统资讯</div>
+    <div class="page-subtitle">TG API · Google SA · 版本. 装完基本不动.</div>
   </div>
 </div>
 
@@ -17,268 +16,77 @@
   </div>
 <% } %>
 
-<!-- ═══ 全局进程 ═══ -->
 <div class="panel">
-  <div class="panel-title">全局进程 (可选, baseline 架构)</div>
-
-  <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    跨部门汇总用. 每个全局进程需要一个独立 TG 号 (订阅所有部门的中转群或审查报告群).
-    配置复杂度比部门高, 故 <strong style="color: var(--yellow);">编辑 config 和 TG 登入建议用 CLI</strong>.
-  </div>
-
-  <div style="overflow-x: auto;">
-    <table>
-      <thead>
-        <tr><th>类型</th><th>用途</th><th>建立状态</th><th>Session</th><th>PM2 状态</th><th>操作</th></tr>
-      </thead>
-      <tbody>
-        <% globalKinds.forEach(gk => {
-          const g = globals.find(x => x.kind === gk.kind);
-          const p = procs.find(x => x.name === `tg-${gk.kind}`);
-        %>
-          <tr>
-            <td><code>tg-<%= gk.kind %></code></td>
-            <td style="font-size: 0.8rem; color: var(--text-dim);"><%= gk.purpose %></td>
-            <% if (!g) { %>
-              <td><span class="dot gray"></span>未建立</td>
-              <td>—</td>
-              <td>—</td>
-              <td>
-                <form action="/settings/global/new" method="POST" style="display:inline;">
-                  <input type="hidden" name="kind" value="<%= gk.kind %>">
-                  <button type="submit" class="btn ghost" style="padding: 0.35rem 0.8rem; font-size: 0.75rem;">＋ 建立</button>
-                </form>
-              </td>
-            <% } else { %>
-              <td><span class="dot green"></span>已建立</td>
-              <td>
-                <% if (g.sessionOk) { %>
-                  <span class="dot green"></span>OK
-                <% } else { %>
-                  <span class="dot yellow"></span>
-                  <a href="/settings/global/<%= gk.kind %>/login" style="color:var(--yellow);">需登入</a>
-                <% } %>
-              </td>
-              <% if (p) { %>
-                <td class="status-<%= p.status %>">● <%= p.status %></td>
-              <% } else { %>
-                <td style="color: var(--text-dim);">未启动</td>
-              <% } %>
-              <td>
-                <a href="/settings/global/<%= gk.kind %>/edit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">编辑</a>
-                <a href="/settings/global/<%= gk.kind %>/login" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;">🔑</a>
-                <form action="/settings/global/<%= gk.kind %>/restart" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="重启">↻</button>
-                </form>
-                <form action="/settings/global/<%= gk.kind %>/start" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="启动">▶</button>
-                </form>
-                <form action="/settings/global/<%= gk.kind %>/stop" method="POST" style="display:inline;">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem;" title="停止">⏸</button>
-                </form>
-                <form action="/settings/global/<%= gk.kind %>/delete" method="POST" style="display:inline;"
-                  onsubmit="return confirm('⚠ 确认删除全局进程 tg-<%= gk.kind %>?\n- PM2 会彻底 delete (不再重启)\n- 目录搬到 global/.trash-*-<%= gk.kind %>\n- Session / config 不丢失, 要恢复手动改回来');">
-                  <button type="submit" class="btn ghost" style="padding: 0.3rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);" title="删除">🗑</button>
-                </form>
-              </td>
-            <% } %>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- ═══ 健康检查 ═══ -->
-<div class="panel">
-  <div class="panel-title">健康检查 · Auto-Restart</div>
-
-  <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    cron 每 5 分钟扫一次所有 <code>tg-*</code> 进程, 非 online 的就 <code>pm2 restart</code>.
-    <strong style="color: var(--yellow);">listener 不自动重启</strong>
-    (重启会掉 TG session, 坏了通常是 session.txt 失效要人工处理).
-  </div>
-
-  <div style="display: flex; align-items: center; gap: 1.5rem; padding: 1rem; background: rgba(7, 10, 21, 0.4); border-radius: 8px;">
-    <% if (healthcheck.enabled) { %>
-      <div style="flex: 1;">
-        <div><span class="dot green"></span><strong style="color: var(--green);">已启用</strong></div>
-        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.3rem;">cron: <code><%= healthcheck.cronLine %></code></div>
-      </div>
-      <form action="/settings/healthcheck/remove" method="POST">
-        <button type="submit" class="btn ghost" style="font-size: 0.8rem;">停用</button>
-      </form>
-    <% } else { %>
-      <div style="flex: 1;">
-        <div><span class="dot gray"></span><strong style="color: var(--text-dim);">未启用</strong></div>
-        <div style="color: var(--text-dim); font-size: 0.75rem; margin-top: 0.3rem;">进程掉线不会自动重启 (需人工 pm2 restart)</div>
-      </div>
-      <form action="/settings/healthcheck/install" method="POST">
-        <button type="submit" class="btn" style="font-size: 0.8rem;">启用</button>
-      </form>
-    <% } %>
-  </div>
-
-  <% if (healthcheck.logTail && healthcheck.logTail.length > 0) { %>
-    <div style="margin-top: 1rem;">
-      <div style="font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.4rem;">最近 5 条日志:</div>
-      <pre style="background: rgba(7, 10, 21, 0.6); padding: 0.75rem; border-radius: 6px; font-size: 0.75rem; color: var(--text-1); overflow-x: auto; margin: 0;"><%= healthcheck.logTail %></pre>
-    </div>
-  <% } %>
-</div>
-
-
-<!-- ═══ 系统资讯 ═══ -->
-<div class="panel">
-  <div class="panel-title">系统资讯</div>
+  <div class="panel-title">Telegram API</div>
   <table>
     <tbody>
-      <tr><td style="color: var(--text-dim);">版本</td><td><code><%= systemInfo.version %></code></td></tr>
-      <tr><td style="color: var(--text-dim);">模式</td><td><%= systemInfo.mode.toUpperCase() %></td></tr>
-      <tr><td style="color: var(--text-dim);">安装目录</td><td><code><%= systemInfo.root %></code></td></tr>
-      <tr><td style="color: var(--text-dim);">Node.js</td><td><code><%= systemInfo.nodeVersion %></code></td></tr>
-      <tr><td style="color: var(--text-dim);">Google SA</td><td>
-        <% if (systemInfo.gsaExists) { %>
-          <span class="dot green"></span><%= systemInfo.gsaEmail %>
-          <button type="button" class="btn ghost" style="padding:0.2rem 0.6rem;font-size:0.7rem;margin-left:0.5rem;" onclick="testGsa()">🧪 测试连线</button>
-          <span id="gsa-test-result" style="margin-left:0.5rem;font-size:0.75rem;"></span>
-          <script>
-            async function testGsa() {
-              const out = document.getElementById("gsa-test-result");
-              out.innerHTML = '测试中...';
-              try {
-                const r = await fetch("/api/test/gsa", { method: "POST" }).then(r => r.json());
-                if (r.ok) {
-                  out.innerHTML = '<span style="color:var(--green);">✓ 连线 OK</span> <span style="color:var(--text-dim);">(project: ' + r.projectId + ')</span>';
-                } else {
-                  out.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>';
-                }
-              } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
-            }
-          </script>
-        <% } else { %>
-          <span class="dot yellow"></span>未设置 (到 /setup 上传)
-        <% } %>
-      </td></tr>
-      <tr><td style="color: var(--text-dim);">PM2</td><td><code><%= systemInfo.pm2Available ? "可用" : "不可用 (需 npm i -g pm2)" %></code></td></tr>
+      <tr>
+        <td style="color: var(--text-dim); width: 140px;">API ID</td>
+        <td><code><%= systemInfo.tgApiId || '(未设置)' %></code></td>
+      </tr>
+      <tr>
+        <td style="color: var(--text-dim);">API Hash</td>
+        <td><code><%= systemInfo.tgApiHash ? systemInfo.tgApiHash.slice(0,8) + '...' + systemInfo.tgApiHash.slice(-4) : '(未设置)' %></code></td>
+      </tr>
     </tbody>
   </table>
+  <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.5rem;">
+    从 <a href="https://my.telegram.org" target="_blank" style="color:var(--accent);">my.telegram.org</a> 申请. 每部门共用.
+  </div>
 </div>
 
-<!-- ═══ 升级 (Web 一键) ═══ -->
 <div class="panel">
-  <div class="panel-title">升级 · 检查远端版本</div>
-
-  <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-    点「检查更新」会跑 <code>git fetch</code> 看远端有没有新 commit.
-    <strong style="color: var(--accent);">软升级</strong>: 代码更新 + 重启 tg-* 进程 (不重建容器, Web 自己不重启).
-    <br>
-    <strong style="color: var(--yellow);">需要重建容器的升级</strong> (Dockerfile / package.json 改了) 会提示需要 SSH 到宿主机.
-  </div>
-
-  <div id="update-check-area">
-    <button type="button" class="btn" onclick="checkUpdates()">🔍 检查更新</button>
-    <span id="update-check-loading" style="display:none; margin-left: 1rem; color: var(--text-dim);">检查中...</span>
-  </div>
-
-  <div id="update-check-result" style="display: none; margin-top: 1rem;"></div>
-
+  <div class="panel-title">Google Service Account</div>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color: var(--text-dim); width: 140px;">状态</td>
+        <td>
+          <% if (systemInfo.gsaExists) { %>
+            <span class="dot green"></span>已设置
+            <button type="button" class="btn ghost" style="padding:0.2rem 0.6rem;font-size:0.7rem;margin-left:0.5rem;" onclick="testGsa()">🧪 测试连线</button>
+            <span id="gsa-test-result" style="margin-left:0.5rem;font-size:0.75rem;"></span>
+          <% } else { %>
+            <span class="dot red"></span>未设置
+            <a href="/setup" class="btn" style="padding:0.2rem 0.6rem;font-size:0.7rem;margin-left:0.5rem;">去上传</a>
+          <% } %>
+        </td>
+      </tr>
+      <% if (systemInfo.gsaExists) { %>
+        <tr>
+          <td style="color: var(--text-dim);">SA Email</td>
+          <td><code><%= systemInfo.gsaEmail %></code></td>
+        </tr>
+        <tr>
+          <td style="color: var(--text-dim);">用途说明</td>
+          <td style="font-size: 0.8rem; color: var(--text-1); line-height:1.7;">
+            每张 Google Sheet 要把 <strong><%= systemInfo.gsaEmail %></strong> 加为"编辑者", 系统才能写表.
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
   <script>
-    async function checkUpdates() {
-      const btn = document.querySelector("#update-check-area button");
-      const loading = document.getElementById("update-check-loading");
-      const out = document.getElementById("update-check-result");
-      btn.disabled = true;
-      loading.style.display = "inline";
-      out.style.display = "none";
+    async function testGsa() {
+      const out = document.getElementById("gsa-test-result");
+      out.innerHTML = '测试中...';
       try {
-        const r = await fetch("/api/updates/check").then(r => r.json());
-        loading.style.display = "none";
-        btn.disabled = false;
-        out.style.display = "block";
-        if (!r.ok) {
-          out.innerHTML = `<div style="padding:0.8rem;background:rgba(255,59,92,0.08);border-left:3px solid var(--red);border-radius:0 6px 6px 0;color:var(--text-1);">检查失败: ${r.error}</div>`;
-          return;
-        }
-        if (r.behind === 0) {
-          out.innerHTML = `<div style="padding:0.8rem;background:rgba(0,255,149,0.06);border-left:3px solid var(--green);border-radius:0 6px 6px 0;color:var(--text-1);">✓ 已是最新版本 (<code>${r.currentCommit}</code> · ${r.currentMsg})</div>`;
-          return;
-        }
-        const commits = r.commits.map(c => `<li style="font-family:'JetBrains Mono',monospace;font-size:0.8rem;">${c}</li>`).join("");
-        let html = `
-          <div style="padding:1rem;background:rgba(0,230,255,0.05);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;">
-            <div style="color:var(--accent);font-weight:700;margin-bottom:0.5rem;">⬆ 落后 ${r.behind} 个 commit</div>
-            <div style="font-size:0.8rem;color:var(--text-dim);">当前: <code>${r.currentCommit}</code> · ${r.currentMsg}</div>
-            <ul style="margin:0.5rem 0 0 1.25rem;padding:0;color:var(--text-1);">${commits}</ul>
-          </div>`;
-        if (r.needsImage) {
-          const affected = r.changedFiles.filter(f => /^(Dockerfile|docker-compose\.yml|.*package(-lock)?\.json)$/.test(f)).join(", ");
-          html += `
-            <div style="margin-top:1rem;padding:1rem;background:rgba(255,201,64,0.08);border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;">
-              <div style="color:var(--yellow);font-weight:700;margin-bottom:0.5rem;">⚠ 需要重建 Docker 镜像</div>
-              <div style="font-size:0.85rem;color:var(--text-1);line-height:1.8;">
-                此次升级改了 <code>${affected}</code>, Web 搞不定. 请 SSH 到宿主机跑:<br>
-                <code style="color:var(--accent);font-size:0.9rem;">cd tg-monitor-multi && bash scripts/update.sh</code>
-              </div>
-            </div>`;
-        } else {
-          html += `
-            <form action="/settings/update" method="POST" style="margin-top:1rem;" onsubmit="return confirm('确认执行软升级？操作前会自动备份 depts/global/data/secrets 到 .backups/')">
-              <button type="submit" class="btn" style="background:linear-gradient(90deg,var(--green),var(--accent));">⬆ 执行软升级</button>
-              <span style="margin-left:0.75rem;color:var(--text-dim);font-size:0.8rem;">git pull + regen ecosystem + pm2 reload tg-* (web 不重启)</span>
-            </form>`;
-        }
-        out.innerHTML = html;
-      } catch (e) {
-        loading.style.display = "none";
-        btn.disabled = false;
-        out.style.display = "block";
-        out.innerHTML = `<div style="color:var(--red);">检查请求失败: ${e.message}</div>`;
-      }
+        const r = await fetch("/api/test/gsa", { method: "POST" }).then(r => r.json());
+        if (r.ok) out.innerHTML = '<span style="color:var(--green);">✓ 连线 OK (project: ' + r.projectId + ')</span>';
+        else out.innerHTML = '<span style="color:var(--red);">✗ ' + r.error + '</span>';
+      } catch (e) { out.innerHTML = '<span style="color:var(--red);">请求失败: ' + e.message + '</span>'; }
     }
   </script>
 </div>
 
-<!-- ═══ 备份 / 回滚 ═══ -->
 <div class="panel">
-  <div class="panel-title">备份 · 回滚</div>
-
-  <% if (!backupList || backupList.length === 0) { %>
-    <div style="color: var(--text-dim); font-size: 0.85rem;">还没有任何备份. 第一次升级会自动建备份.</div>
-  <% } else { %>
-    <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
-      每次软升级 / 回滚前会把 <code>depts/ global/ data/ secrets/</code> 备份到 <code>.backups/&lt;ts&gt;/</code>.
-      回滚会把对应目录<strong>整个换回</strong> (当前状态会先另外预备份到带 <code>-pre-rollback</code> 尾缀的目录).
-    </div>
-    <div style="overflow-x: auto;">
-      <table>
-        <thead>
-          <tr><th>时间戳</th><th>包含</th><th>大小</th><th>建立时间</th><th>操作</th></tr>
-        </thead>
-        <tbody>
-          <% backupList.forEach(b => { %>
-            <tr>
-              <td><code style="font-size:0.75rem;"><%= b.ts %></code><% if (b.isSafety) { %> <span style="color:var(--yellow);font-size:0.7rem;">safety</span><% } %></td>
-              <td style="font-size:0.75rem;color:var(--text-dim);"><%= (b.includes || []).join(" · ") %></td>
-              <td style="font-size:0.75rem;"><%= b.sizeStr %></td>
-              <td style="font-size:0.75rem;color:var(--text-dim);"><%= new Date(b.mtime).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) %></td>
-              <td>
-                <form action="/settings/rollback/<%= b.ts %>" method="POST" style="display:inline;"
-                  onsubmit="return confirm('⚠ 确认回滚到 <%= b.ts %>？\n这会把 depts/ global/ data/ secrets/ 换成备份内容.\n当前状态会先另外预备份 (安全可回头).');">
-                  <button type="submit" class="btn ghost" style="padding:0.3rem 0.7rem;font-size:0.75rem;color:var(--yellow);border-color:var(--yellow);">↶ 回滚</button>
-                </form>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
-  <% } %>
-
-  <% if (backups.count > 0) { %>
-    <div style="margin-top: 1rem; font-size: 0.75rem; color: var(--text-dim);">
-      共 <strong style="color: var(--accent);"><%= backups.count %></strong> 个备份, 总占用 <%= backups.totalSize %> ·
-      清旧备份要 SSH 跑 <code>bash scripts/clean-backups.sh</code> (保留最近 5 个)
-    </div>
-  <% } %>
+  <div class="panel-title">系统信息</div>
+  <table>
+    <tbody>
+      <tr><td style="color: var(--text-dim); width: 140px;">版本</td><td><code><%= systemInfo.version %></code></td></tr>
+      <tr><td style="color: var(--text-dim);">运行模式</td><td><%= systemInfo.mode.toUpperCase() %></td></tr>
+      <tr><td style="color: var(--text-dim);">Node.js</td><td><code><%= systemInfo.nodeVersion %></code></td></tr>
+      <tr><td style="color: var(--text-dim);">安装目录</td><td><code><%= systemInfo.root %></code></td></tr>
+    </tbody>
+  </table>
 </div>

@@ -590,6 +590,20 @@ function renderLoginPage(res, target, extraCtx, opts = {}, status = 200) {
   });
 }
 
+// 登入成功后自动启动对应 worker (省用户手动点"启动")
+async function autoStartAfterLogin(target) {
+  try {
+    const ecoPath = path.join(ROOT, "ecosystem.config.js");
+    if (!fs.existsSync(ecoPath)) return;
+    const onlyName = target.type === "dept" ? `tg-worker-${target.name}` : `tg-${target.name}`;
+    await new Promise(r => execFile("pm2", ["start", ecoPath, "--only", onlyName], { cwd: ROOT }, (err, _o, stderr) => {
+      if (err) console.warn(`[auto-start] pm2 start ${onlyName} 失败:`, stderr);
+      else console.log(`[auto-start] ✓ pm2 start ${onlyName}`);
+      r();
+    }));
+  } catch (e) { console.warn("[auto-start]", e.message); }
+}
+
 function handleLoginFlow(target, extraCtx) {
   return {
     get: (req, res) => {
@@ -612,7 +626,10 @@ function handleLoginFlow(target, extraCtx) {
       const code = String(req.body.code || "").trim();
       try {
         const r = await tgLogin.submitCode(target, code);
-        if (r.status === "done") return renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
+        if (r.status === "done") {
+          await autoStartAfterLogin(target);
+          return renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
+        }
         renderLoginPage(res, target, extraCtx, { step: "password" });
       } catch (e) {
         console.error("[tg-login/code]", target.key, e.message);
@@ -625,6 +642,7 @@ function handleLoginFlow(target, extraCtx) {
       const password = String(req.body.password || "");
       try {
         const r = await tgLogin.submitPassword(target, password);
+        await autoStartAfterLogin(target);
         renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
       } catch (e) {
         console.error("[tg-login/password]", target.key, e.message);
@@ -686,7 +704,7 @@ app.post("/depts/:name/login/copy",     (req, res) => {
 app.get("/depts/:name",       (req, res) => res.redirect(`/depts/${req.params.name}/edit`));
 app.get("/logs",                 placeholder("日志", "即时 pm2 logs 串流", "v0.3 实作", "留到 v0.3。届时可用 WebSocket 串 pm2 logs，按部门筛选 + 搜寻关键字。"));
 app.get("/logs/:name",           placeholder("部门日志", "单部门 pm2 logs", "v0.3 实作", "留到 v0.3。"));
-// ─── /settings (全局进程 + healthcheck + 系统资讯) ───
+// ─── /settings (只留系统级: TG API / Google SA / 版本) ───
 const CRON_MARKER = "# tg-monitor-multi healthcheck";
 
 function readHealthcheckStatus() {
@@ -740,45 +758,25 @@ async function listAllProcesses() {
 }
 
 app.get("/settings", async (req, res) => {
-  const [globals, procs] = await Promise.all([
-    loadGlobalsForSettings(),
-    listAllProcesses(),
-  ]);
-  const GLOBAL_PURPOSES = {
-    "title-sheet-writer":   "跨部门群名变更汇总 (订阅多中转群, 分流写 Sheet)",
-    "review-report-writer": "审查报告闭环跟踪 (订阅多审查报告群, 写总表)",
-  };
-  const globalKindsWithPurpose = GLOBAL_KINDS.map(k => ({ kind: k, purpose: GLOBAL_PURPOSES[k] }));
-
-  const healthcheck = readHealthcheckStatus();
-  const backups = readBackupsSummary();
-  const backupList = updateManager.listBackups().slice(0, 10); // 最多显示最近 10 个
+  const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
   const gsaExists = fs.existsSync(GOOGLE_SA_PATH);
   let gsaEmail = "";
   if (gsaExists) {
     try { gsaEmail = JSON.parse(fs.readFileSync(GOOGLE_SA_PATH, "utf8")).client_email || ""; } catch {}
   }
-
-  const systemInfo = {
-    version: VERSION,
-    mode: dataProvider.MODE,
-    root: ROOT,
-    nodeVersion: process.version,
-    gsaExists,
-    gsaEmail,
-    pm2Available: true, // 之后可真的跑 pm2 -v 检查, MVP 先假设
-  };
-
   res.render("pages/settings", {
     title: "系统设置",
     active: "settings",
-    globals,
-    globalKinds: globalKindsWithPurpose,
-    procs,
-    healthcheck,
-    backups,
-    backupList,
-    systemInfo,
+    systemInfo: {
+      version: VERSION,
+      mode: dataProvider.MODE,
+      root: ROOT,
+      nodeVersion: process.version,
+      gsaExists,
+      gsaEmail,
+      tgApiId: sys.tgApiId || "",
+      tgApiHash: sys.tgApiHash || "",
+    },
     flash: req.query.flash || null,
     error: req.query.error || null,
   });
@@ -1246,3 +1244,83 @@ app.listen(PORT, () => {
     }
   })();
 });
+// ─── /review + /ops 放最后 (放前面会 ReferenceError 因为依赖在后面声明) ───
+// ─── /review — 审查报告独立页 ─────────────────────
+const STATUS_LABEL_LOCAL = {
+  "online": "运行中", "stopped": "已停止", "errored": "出错",
+  "waiting restart": "启动失败 (重试中)", "launching": "启动中", "one-launch-status": "启动中",
+};
+
+app.get("/review", async (req, res) => {
+  const kind = "review-report-writer";
+  const g = loadGlobalForEdit(kind);
+  const procs = await dataProvider.listProcesses();
+  const proc = procs.find(p => p.name === `tg-${kind}`);
+  res.render("pages/review", {
+    title: "审查报告",
+    active: "review",
+    built: Boolean(g),
+    config: g ? g.config : {},
+    sessionOk: g ? g.sessionOk : false,
+    proc: proc || null,
+    STATUS_LABEL: STATUS_LABEL_LOCAL,
+    flash: req.query.flash || null,
+    error: req.query.error || null,
+  });
+});
+
+// /review 的各种 action 都重定向到既有 /settings/global/... 路由
+app.get("/review/edit", (_req, res) => res.redirect("/settings/global/review-report-writer/edit"));
+app.get("/review/login", (_req, res) => res.redirect("/settings/global/review-report-writer/login"));
+app.post("/review/restart", async (_req, res) => { await pm2Exec("restart", "tg-review-report-writer"); res.redirect("/review?flash=" + encodeURIComponent("已重启")); });
+app.post("/review/start", async (_req, res) => {
+  const ecoPath = path.join(ROOT, "ecosystem.config.js");
+  if (fs.existsSync(ecoPath)) await new Promise(r => execFile("pm2", ["start", ecoPath, "--only", "tg-review-report-writer"], { cwd: ROOT }, () => r()));
+  res.redirect("/review?flash=" + encodeURIComponent("已启动"));
+});
+app.post("/review/stop", async (_req, res) => { await pm2Exec("stop", "tg-review-report-writer"); res.redirect("/review?flash=" + encodeURIComponent("已停止")); });
+app.post("/review/delete", async (_req, res) => {
+  try {
+    await new Promise(r => execFile("pm2", ["delete", "tg-review-report-writer"], { cwd: ROOT }, () => r()));
+    const src = path.join(ROOT, "global", "review-report-writer");
+    if (fs.existsSync(src)) {
+      const trash = path.join(ROOT, "global", `.trash-${Date.now()}-review-report-writer`);
+      fs.renameSync(src, trash);
+    }
+    await regenerateEcosystem();
+    res.redirect("/review?flash=" + encodeURIComponent("已删除 (目录搬到 .trash)"));
+  } catch (e) {
+    res.redirect("/review?error=" + encodeURIComponent(e.message));
+  }
+});
+
+// ─── /ops — 运维页 (healthcheck + 升级 + 备份) ───────
+app.get("/ops", async (req, res) => {
+  const healthcheck = readHealthcheckStatus();
+  const backupList = updateManager.listBackups().slice(0, 10);
+  res.render("pages/ops", {
+    title: "运维",
+    active: "ops",
+    healthcheck,
+    backupList,
+    flash: req.query.flash || null,
+    error: req.query.error || null,
+  });
+});
+app.post("/ops/healthcheck/install", (_req, res) => {
+  try { internalHealthcheck.setEnabled(true); internalHealthcheck.start(); res.redirect("/ops?flash=" + encodeURIComponent("健康检查已启用 (5 分钟扫一次)")); }
+  catch (e) { res.redirect("/ops?error=" + encodeURIComponent(e.message)); }
+});
+app.post("/ops/healthcheck/remove", (_req, res) => {
+  try { internalHealthcheck.setEnabled(false); internalHealthcheck.stop(); res.redirect("/ops?flash=" + encodeURIComponent("健康检查已停用")); }
+  catch (e) { res.redirect("/ops?error=" + encodeURIComponent(e.message)); }
+});
+app.post("/ops/update", async (_req, res) => {
+  try { const r = updateManager.softUpdate(); renderUpdateResult(res, "升级结果", r, null); }
+  catch (e) { renderUpdateResult(res, "升级失败", { log: e.message }, e.message); }
+});
+app.post("/ops/rollback/:ts", async (req, res) => {
+  try { const r = updateManager.rollback(req.params.ts); renderUpdateResult(res, `回滚结果 · ${req.params.ts}`, r, null); }
+  catch (e) { renderUpdateResult(res, `回滚失败 · ${req.params.ts}`, { log: e.message }, e.message); }
+});
+
