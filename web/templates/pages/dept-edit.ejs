@@ -201,14 +201,53 @@
       <label>Spreadsheet ID</label>
       <input type="text" id="fld-spreadsheetId" name="spreadsheetId" value="<%= fd.spreadsheetId != null ? fd.spreadsheetId : (cfg.spreadsheetId || '') %>" required>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position: relative;">
       <label>工作表分页名称 (sheetName)</label>
-      <input type="text" id="fld-sheetName" name="sheetName" value="<%= fd.sheetName != null ? fd.sheetName : (cfg.sheetName || '') %>" required>
+      <input type="text" id="fld-sheetName" name="sheetName" value="<%= fd.sheetName != null ? fd.sheetName : (cfg.sheetName || '') %>" required autocomplete="off">
+      <div class="hint">
+        <button type="button" class="btn ghost" style="padding:0.15rem 0.5rem;font-size:0.7rem;" onclick="openTabPicker()">🔍 从该 Sheet 载入分页列表</button>
+        <span id="tab-picker-meta" style="font-size:0.72rem;color:var(--text-dim);margin-left:0.4rem;"></span>
+      </div>
+      <div id="tab-picker" style="display:none; position:absolute; left:0; right:0; top:calc(100% + 30px); background:var(--panel-bg, #0f1420); border:1px solid var(--accent); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:100; max-height:300px; overflow:hidden;">
+        <div id="tab-picker-list" style="max-height:260px; overflow-y:auto; padding:0.3rem 0;"></div>
+        <div style="padding:0.3rem 0.6rem; border-top:1px solid var(--panel-border); font-size:0.7rem; color:var(--text-dim); text-align:right;">
+          <button type="button" onclick="closeTabPicker()" style="background:none;border:none;color:var(--text-dim);font-size:0.7rem;cursor:pointer;">关闭 (Esc)</button>
+        </div>
+      </div>
     </div>
     <div style="display: flex; gap: 0.5rem; align-items: center;">
       <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="testSheetWrite()">🧪 测试 Sheet 写入</button>
       <span id="sheet-test-result" style="font-size:0.78rem;color:var(--text-dim);"></span>
     </div>
+    <script>
+      async function openTabPicker() {
+        const spreadsheetId = document.getElementById("fld-spreadsheetId").value.trim();
+        const meta = document.getElementById("tab-picker-meta");
+        const picker = document.getElementById("tab-picker");
+        const listEl = document.getElementById("tab-picker-list");
+        if (!spreadsheetId) { meta.innerHTML = '<span style="color:var(--red);">请先填 Spreadsheet ID</span>'; return; }
+        picker.style.display = "block";
+        listEl.innerHTML = '<div style="padding:1rem;color:var(--text-dim);text-align:center;">载入中...</div>';
+        meta.textContent = '';
+        try {
+          const r = await fetch("/api/sheet-tabs?spreadsheetId=" + encodeURIComponent(spreadsheetId)).then(r => r.json());
+          if (!r.ok) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">✗ ' + r.error + '</div>'; return; }
+          if (r.tabs.length === 0) { listEl.innerHTML = '<div style="padding:1rem;color:var(--text-dim);">此 Sheet 没有分页</div>'; return; }
+          listEl.innerHTML = r.tabs.map(t => {
+            const esc = String(t.title).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            return '<div onclick="pickTab(\'' + encodeURIComponent(t.title) + '\')" style="padding:0.45rem 0.8rem;cursor:pointer;font-size:0.85rem;color:var(--text-0);" onmouseover="this.style.background=\'rgba(0,230,255,0.08)\'" onmouseout="this.style.background=\'\'">' + esc + '</div>';
+          }).join('');
+          meta.innerHTML = '<span style="color:var(--green);">✓ ' + r.tabs.length + ' 个分页 (Sheet: ' + (r.spreadsheetTitle||'') + ')</span>';
+        } catch (e) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">请求失败: ' + e.message + '</div>'; }
+      }
+      function pickTab(encoded) { document.getElementById("fld-sheetName").value = decodeURIComponent(encoded); closeTabPicker(); }
+      function closeTabPicker() { document.getElementById("tab-picker").style.display = "none"; }
+      document.addEventListener("keydown", e => { if (e.key === "Escape") closeTabPicker(); });
+      document.addEventListener("click", e => {
+        const p = document.getElementById("tab-picker");
+        if (p && p.style.display !== "none" && !p.contains(e.target) && !e.target.closest('button[onclick="openTabPicker()"]')) closeTabPicker();
+      });
+    </script>
     <script>
       async function testSheetWrite() {
         const out = document.getElementById("sheet-test-result");
@@ -239,12 +278,19 @@
   <div class="panel">
     <div class="panel-title">关键字</div>
     <div class="form-group">
-      <label>关键字列表（用逗号分隔）</label>
-      <input type="text" id="fld-keywords" name="keywords" style="font-family: 'JetBrains Mono', monospace;"
-        value="<%= fd.keywords != null ? fd.keywords : (cfg.keywords || []).join(', ') %>" oninput="previewMatch()">
-      <div class="hint">
-        例：<code>到期, 续费, 下架, 打款, 欠费</code><br>
-        listener 比对群消息时用. 支持中文逗号或英文逗号. 大小写敏感，注意繁简体.
+      <label>关键字列表</label>
+      <input type="hidden" id="fld-keywords" name="keywords" value="<%= fd.keywords != null ? fd.keywords : (cfg.keywords || []).join(', ') %>">
+      <div id="kw-tags" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem;min-height:48px;background:rgba(7,10,21,0.4);border:1px solid var(--panel-border);border-radius:6px;"></div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+        <input type="text" id="kw-input" placeholder="输关键字 + Enter 添加 (或逗号)" style="flex:1;padding:0.4rem 0.6rem;font-family:'JetBrains Mono',monospace;" onkeydown="kwKeyDown(event)">
+        <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="kwAdd()">+ 添加</button>
+      </div>
+      <div class="hint" style="margin-top:0.5rem;">
+        <span style="color:var(--text-dim);">常用 (点击添加):</span>
+        <% const presets = ["到期","续费","下架","上架","暂停","地址","打款","欠费","对账","不跑了","费用","余额","退款"]; %>
+        <% presets.forEach(p => { %>
+          <button type="button" onclick="kwAddPreset('<%= p %>')" style="padding:0.1rem 0.5rem;margin:0.15rem 0.1rem;background:rgba(0,230,255,0.06);border:1px solid rgba(0,230,255,0.2);border-radius:10px;color:var(--accent);font-size:0.72rem;cursor:pointer;"><%= p %></button>
+        <% }); %>
       </div>
     </div>
     <div class="form-group">
@@ -256,6 +302,48 @@
       <span style="color: var(--text-dim);">改关键字或测试文本, 这里会实时显示命中结果</span>
     </div>
     <script>
+      // ─── 关键字标签管理 ───
+      let kwList = [];
+      function kwLoad() {
+        const raw = document.getElementById("fld-keywords").value || "";
+        kwList = raw.split(/[,，、\n\r]+/).map(s => s.trim()).filter(Boolean);
+        kwRender();
+      }
+      function kwRender() {
+        const box = document.getElementById("kw-tags");
+        if (kwList.length === 0) {
+          box.innerHTML = '<span style="color:var(--text-dim);font-size:0.8rem;align-self:center;">(还没有关键字, 输入或点击常用添加)</span>';
+        } else {
+          box.innerHTML = kwList.map((k, i) => {
+            const esc = String(k).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            return '<span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.2rem 0.5rem 0.2rem 0.7rem;background:rgba(0,230,255,0.1);border:1px solid rgba(0,230,255,0.3);border-radius:14px;color:var(--accent);font-size:0.8rem;font-family:\'JetBrains Mono\',monospace;">' +
+              '<span>' + esc + '</span>' +
+              '<button type="button" onclick="kwRemove(' + i + ')" style="background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;padding:0;line-height:1;">×</button>' +
+              '</span>';
+          }).join('');
+        }
+        document.getElementById("fld-keywords").value = kwList.join(", ");
+        previewMatch();
+      }
+      function kwAdd() {
+        const input = document.getElementById("kw-input");
+        const val = input.value.trim();
+        if (!val) return;
+        val.split(/[,，、]+/).map(s => s.trim()).filter(Boolean).forEach(k => {
+          if (!kwList.includes(k)) kwList.push(k);
+        });
+        input.value = "";
+        kwRender();
+      }
+      function kwAddPreset(k) { if (!kwList.includes(k)) { kwList.push(k); kwRender(); } }
+      function kwRemove(i) { kwList.splice(i, 1); kwRender(); }
+      function kwKeyDown(e) {
+        if (e.key === "Enter" || e.key === ",") { e.preventDefault(); kwAdd(); }
+        else if (e.key === "Backspace" && !e.target.value && kwList.length) { kwList.pop(); kwRender(); }
+      }
+      document.addEventListener("DOMContentLoaded", kwLoad);
+
+      // ─── 关键字命中预览 ───
       function previewMatch() {
         const kwStr = document.getElementById("fld-keywords").value;
         const text = document.getElementById("fld-preview-text").value;

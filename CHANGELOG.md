@@ -4,6 +4,26 @@
 
 <!-- 版本紀律: 每次發版必須在此加一行. 違反 R6 兼容契約 (見 ARCHITECTURE.md) -->
 
+## [0.4.1-docker] — 2026-04-17
+
+能选的都改选择式, 减少手打.
+
+### 改动
+- **中转群** (dept-edit) — datalist 改成**弹出式搜索面板** (53 个群可搜可滚可点), Esc 关闭
+- **工作表分页** (dept-edit + global-edit) — 填 Spreadsheet ID 后点「🔍 载入分页」→ 从 Sheet 拉全部分页下拉选, 不用手打
+- **关键字** (dept-edit) — 从逗号分隔输入框改成**标签式 (chip)**:
+  - 每个关键字一个标签, ✕ 一键删除
+  - 输入框 + Enter/逗号 添加
+  - Backspace 删最后一个
+  - 常用关键字一排按钮快捷添加 (到期/续费/下架/打款/欠费/对账/...)
+- **审查报告群列表** (global-edit review-report-writer) — 从逗号 textarea 改成标签式 + 从 TG 群搜索面板选
+
+### 新增
+- `GET /api/sheet-tabs?spreadsheetId=xxx` — 返回该 Sheet 所有分页列表
+- `connection-tester.js` 新增 `listSheetTabs()` 函数
+
+---
+
 ## [0.4.0-docker] — 2026-04-17
 
 **合并架构** — 每部门 3 进程 → 1 worker, 全局 2 砍 1. **进程 29→10, TG 号 20→10**.

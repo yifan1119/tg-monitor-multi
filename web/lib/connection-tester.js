@@ -132,4 +132,30 @@ async function testSheetWrite({ spreadsheetId, sheetName }) {
   }
 }
 
-module.exports = { testGsa, testSheetWrite };
+async function listSheetTabs({ spreadsheetId }) {
+  if (!spreadsheetId) return { ok: false, error: "缺少 spreadsheetId" };
+  try {
+    const { auth } = await getAuth();
+    const { google } = require("googleapis");
+    const sheets = google.sheets({ version: "v4", auth });
+    const meta = await sheets.spreadsheets.get({
+      spreadsheetId,
+      fields: "properties.title,sheets.properties(title,sheetId,index)",
+    });
+    const tabs = (meta.data.sheets || [])
+      .sort((a, b) => (a.properties.index || 0) - (b.properties.index || 0))
+      .map(s => ({ title: s.properties.title, sheetId: s.properties.sheetId }));
+    return {
+      ok: true,
+      spreadsheetTitle: meta.data.properties?.title,
+      tabs,
+    };
+  } catch (e) {
+    let hint = "";
+    if (/permission|PERMISSION_DENIED|403/.test(e.message)) hint = " [Sheet 要把 SA email 加为编辑者]";
+    else if (/not found|404/i.test(e.message)) hint = " [spreadsheetId 错误]";
+    return { ok: false, error: e.message + hint };
+  }
+}
+
+module.exports = { testGsa, testSheetWrite, listSheetTabs };

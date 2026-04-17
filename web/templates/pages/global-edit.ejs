@@ -198,12 +198,94 @@
   <div class="panel">
     <div class="panel-title">订阅的审查报告群</div>
     <div class="form-group">
-      <label>群名列表（用逗号分隔）</label>
-      <textarea name="input_chats" rows="4" style="font-family: 'JetBrains Mono', monospace;"><%= (cfg.inputChatNames || []).join(", ") %></textarea>
-      <div class="hint">
-        <strong>订阅这些审查报告群的消息</strong>。用这个"观察员"TG 号必须已加入全部这些群。<br>
-        例：<code>悦达-审查报告, 逸品-审查报告, 鼎丰-审查报告</code>
+      <label>群名列表</label>
+      <input type="hidden" name="input_chats" id="fld-input-chats" value="<%= (cfg.inputChatNames || []).join(', ') %>">
+      <div id="ic-tags" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem;min-height:48px;background:rgba(7,10,21,0.4);border:1px solid var(--panel-border);border-radius:6px;"></div>
+      <div style="display:flex;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+        <% if (g.sessionOk) { %>
+          <button type="button" class="btn ghost" style="padding:0.35rem 0.8rem;font-size:0.75rem;" onclick="openIcPicker()">🔍 从该汇总员号加入的群选</button>
+          <span id="ic-picker-meta" style="font-size:0.72rem;color:var(--text-dim);"></span>
+        <% } else { %>
+          <span style="color:var(--text-dim);font-size:0.72rem;">登入后可从 TG 群下拉选</span>
+        <% } %>
       </div>
+      <div class="hint" style="margin-top:0.5rem;">
+        <strong>订阅这些审查报告群的消息</strong>. 用这个"观察员"TG 号必须已加入全部这些群.
+      </div>
+      <div id="ic-picker" style="display:none;margin-top:0.6rem;background:var(--panel-bg, #0f1420);border:1px solid var(--accent);border-radius:8px;max-height:360px;overflow:hidden;">
+        <div style="padding:0.6rem;border-bottom:1px solid var(--panel-border);">
+          <input type="text" id="ic-picker-search" placeholder="🔍 搜索群名..." style="width:100%;padding:0.4rem 0.6rem;background:rgba(7,10,21,0.5);border:1px solid var(--panel-border);border-radius:4px;color:var(--text-0);font-size:0.85rem;" oninput="filterIcList()">
+        </div>
+        <div id="ic-picker-list" style="max-height:260px;overflow-y:auto;padding:0.3rem 0;"></div>
+        <div style="padding:0.3rem 0.6rem;border-top:1px solid var(--panel-border);font-size:0.7rem;color:var(--text-dim);display:flex;justify-content:space-between;">
+          <span id="ic-picker-count">—</span>
+          <button type="button" onclick="document.getElementById('ic-picker').style.display='none'" style="background:none;border:none;color:var(--text-dim);font-size:0.7rem;cursor:pointer;">关闭</button>
+        </div>
+      </div>
+      <script>
+        let icList = [];
+        let icAllGroups = [];
+        function icLoad() {
+          icList = document.getElementById("fld-input-chats").value.split(/[,，、\n\r]+/).map(s => s.trim()).filter(Boolean);
+          icRender();
+        }
+        function icRender() {
+          const box = document.getElementById("ic-tags");
+          if (icList.length === 0) {
+            box.innerHTML = '<span style="color:var(--text-dim);font-size:0.8rem;align-self:center;">(没群 — 点上面按钮选)</span>';
+          } else {
+            box.innerHTML = icList.map((k, i) => {
+              const esc = String(k).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+              return '<span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.25rem 0.5rem 0.25rem 0.7rem;background:rgba(0,230,255,0.1);border:1px solid rgba(0,230,255,0.3);border-radius:14px;color:var(--accent);font-size:0.8rem;">' +
+                '<span>' + esc + '</span>' +
+                '<button type="button" onclick="icRemove(' + i + ')" style="background:none;border:none;color:var(--red);font-size:1rem;cursor:pointer;padding:0;line-height:1;">×</button>' +
+                '</span>';
+            }).join('');
+          }
+          document.getElementById("fld-input-chats").value = icList.join(", ");
+        }
+        function icRemove(i) { icList.splice(i, 1); icRender(); }
+        function icAdd(name) { if (!icList.includes(name)) { icList.push(name); icRender(); } }
+        async function openIcPicker() {
+          const picker = document.getElementById("ic-picker");
+          const listEl = document.getElementById("ic-picker-list");
+          const meta = document.getElementById("ic-picker-meta");
+          picker.style.display = "block";
+          listEl.innerHTML = '<div style="padding:1rem;color:var(--text-dim);text-align:center;">拉取中...</div>';
+          try {
+            const r = await fetch("/api/tg-dialogs/global/<%= kind %>").then(r => r.json());
+            if (!r.ok) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">✗ ' + r.error + '</div>'; return; }
+            icAllGroups = r.dialogs;
+            renderIcList(icAllGroups);
+            meta.innerHTML = '<span style="color:var(--green);">✓ ' + r.dialogs.length + ' 个群' + (r.cached ? ' (缓存)' : '') + '</span>';
+          } catch (e) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">请求失败: ' + e.message + '</div>'; }
+        }
+        function renderIcList(list) {
+          const listEl = document.getElementById("ic-picker-list");
+          const count = document.getElementById("ic-picker-count");
+          if (list.length === 0) { listEl.innerHTML = '<div style="padding:1rem;color:var(--text-dim);text-align:center;">没匹配的群</div>'; count.textContent = '0 / ' + icAllGroups.length; return; }
+          listEl.innerHTML = list.map(d => {
+            const picked = icList.includes(d.title);
+            const esc = String(d.title).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+            return '<div data-ic-title="' + esc + '" style="padding:0.4rem 0.8rem;cursor:pointer;font-size:0.85rem;color:' + (picked ? 'var(--text-dim)' : 'var(--text-0)') + ';display:flex;justify-content:space-between;align-items:center;" onmouseover="this.style.background=\'rgba(0,230,255,0.08)\'" onmouseout="this.style.background=\'\'">' +
+              '<span>' + (picked ? '✓ ' : '') + esc + '</span>' +
+              '<span style="color:var(--text-dim);font-size:0.7rem;">' + d.type + '</span>' +
+            '</div>';
+          }).join('');
+          count.textContent = list.length + ' / ' + icAllGroups.length;
+        }
+        // 简化 onclick: 用 data attr 避免 encode 混乱
+        document.addEventListener("click", e => {
+          const el = e.target.closest("[data-ic-title]");
+          if (el) icAdd(el.getAttribute("data-ic-title"));
+        });
+        function filterIcList() {
+          const q = document.getElementById("ic-picker-search").value.toLowerCase().trim();
+          if (!q) return renderIcList(icAllGroups);
+          renderIcList(icAllGroups.filter(d => d.title.toLowerCase().includes(q)));
+        }
+        document.addEventListener("DOMContentLoaded", icLoad);
+      </script>
     </div>
   </div>
 
@@ -214,13 +296,45 @@
     </div>
     <div class="form-group">
       <label>Spreadsheet ID</label>
-      <input type="text" id="fld-spreadsheetId" name="spreadsheetId" value="<%= cfg.spreadsheetId || '' %>" placeholder="1lu4J3v9GsDO..." required>
+      <input type="text" id="fld-spreadsheetId" name="spreadsheetId" value="<%= cfg.spreadsheetId || '' %>" placeholder="1lu4J3v9GsDO..." required autocomplete="off">
       <div class="hint">从 Sheet 网址 <code>/d/&lt;ID&gt;/edit</code> 取. Sheet 必须把 Google SA email 加为"编辑者"</div>
     </div>
-    <div class="form-group">
+    <div class="form-group" style="position:relative;">
       <label>工作表分页名称</label>
-      <input type="text" id="fld-sheetName" name="sheetName" value="<%= cfg.sheetName || '审查报告001' %>" required>
-      <div class="hint">分页要先手动建好, 例: <code>审查报告001</code></div>
+      <input type="text" id="fld-sheetName" name="sheetName" value="<%= cfg.sheetName || '审查报告001' %>" required autocomplete="off">
+      <div class="hint">
+        <button type="button" class="btn ghost" style="padding:0.15rem 0.5rem;font-size:0.7rem;" onclick="openTabPicker2()">🔍 从该 Sheet 载入分页列表</button>
+        <span id="tab-picker-meta2" style="font-size:0.72rem;color:var(--text-dim);margin-left:0.4rem;"></span>
+      </div>
+      <div id="tab-picker2" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 30px);background:var(--panel-bg, #0f1420);border:1px solid var(--accent);border-radius:8px;z-index:100;max-height:300px;overflow:hidden;">
+        <div id="tab-picker-list2" style="max-height:260px;overflow-y:auto;padding:0.3rem 0;"></div>
+      </div>
+      <script>
+        async function openTabPicker2() {
+          const id = document.getElementById("fld-spreadsheetId").value.trim();
+          const meta = document.getElementById("tab-picker-meta2");
+          const picker = document.getElementById("tab-picker2");
+          const listEl = document.getElementById("tab-picker-list2");
+          if (!id) { meta.innerHTML = '<span style="color:var(--red);">先填 Spreadsheet ID</span>'; return; }
+          picker.style.display = "block";
+          listEl.innerHTML = '<div style="padding:1rem;color:var(--text-dim);text-align:center;">载入中...</div>';
+          try {
+            const r = await fetch("/api/sheet-tabs?spreadsheetId=" + encodeURIComponent(id)).then(r => r.json());
+            if (!r.ok) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">✗ ' + r.error + '</div>'; return; }
+            listEl.innerHTML = r.tabs.map(t => {
+              const esc = String(t.title).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+              return '<div data-tab-title="' + esc + '" style="padding:0.45rem 0.8rem;cursor:pointer;font-size:0.85rem;" onmouseover="this.style.background=\'rgba(0,230,255,0.08)\'" onmouseout="this.style.background=\'\'">' + esc + '</div>';
+            }).join('');
+            meta.innerHTML = '<span style="color:var(--green);">✓ ' + r.tabs.length + ' 个分页</span>';
+          } catch (e) { listEl.innerHTML = '<div style="padding:1rem;color:var(--red);">请求失败: ' + e.message + '</div>'; }
+        }
+        document.addEventListener("click", e => {
+          const el = e.target.closest("[data-tab-title]");
+          if (el) { document.getElementById("fld-sheetName").value = el.getAttribute("data-tab-title"); document.getElementById("tab-picker2").style.display = "none"; }
+          const picker = document.getElementById("tab-picker2");
+          if (picker && picker.style.display !== "none" && !picker.contains(e.target) && !e.target.closest('button[onclick="openTabPicker2()"]')) picker.style.display = "none";
+        });
+      </script>
     </div>
     <div style="display: flex; gap: 0.5rem; align-items: center;">
       <button type="button" class="btn ghost" style="padding:0.4rem 0.9rem;font-size:0.75rem;" onclick="testSheetWrite()">🧪 测试 Sheet 写入</button>

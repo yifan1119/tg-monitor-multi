@@ -949,6 +949,9 @@ app.post("/api/test/sheet", async (req, res) => {
   const { spreadsheetId, sheetName } = req.body || {};
   res.json(await connectionTester.testSheetWrite({ spreadsheetId, sheetName }));
 });
+app.get("/api/sheet-tabs", async (req, res) => {
+  res.json(await connectionTester.listSheetTabs({ spreadsheetId: req.query.spreadsheetId }));
+});
 
 // ─── 升级 / 回滚 ─────────────────────────────
 const updateManager = require("./lib/update-manager");
