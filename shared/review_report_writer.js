@@ -18,7 +18,9 @@ if (!fs.existsSync("./session.txt")) {
   process.exit(1);
 }
 
-if (!fs.existsSync("./google-service-account.json")) {
+const { requireGsa } = require("./_gsa-resolver");
+const GSA_PATH = requireGsa();
+if (false) {
   console.error("缺少 google-service-account.json");
   process.exit(1);
 }
@@ -44,7 +46,7 @@ const stringSession = new StringSession(sessionString);
 const client = new TelegramClient(stringSession, apiId, apiHash, { connectionRetries: 5 });
 
 const auth = new google.auth.GoogleAuth({
-  keyFile: "./google-service-account.json",
+  keyFile: GSA_PATH,
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
 const sheets = google.sheets({ version: "v4", auth });
