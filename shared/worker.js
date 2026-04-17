@@ -368,6 +368,17 @@ async function writeTitleChangeRow(data) {
   console.log(`✓ title 已写 → ${data.oldTitle} → ${data.newTitle}`);
 }
 
+// 串行队列: Sheet 写入必须一个接一个 (并发 insertDimension + update 会 race → 空行/覆盖)
+let sheetWriteQueue = Promise.resolve();
+function enqueueSheetWrite(fn) {
+  const p = sheetWriteQueue.then(() => fn()).catch(e => {
+    console.error("[sheet-queue] 任务失败:", e.message);
+  });
+  // 不要让错误阻塞后续任务
+  sheetWriteQueue = p.catch(() => {});
+  return p;
+}
+
 // retry 包装器
 async function writeWithRetry(type, data, attempt = 1) {
   try {
@@ -487,7 +498,7 @@ async function handleMessage(message) {
       await client.sendMessage(outputEntity, { message: output }).catch(e => console.error("推中转群失败:", e.message));
     }
     // 写 Sheet (异步 retry)
-    writeWithRetry("title", { oldTitle: "", newTitle: eventTitle }).catch(() => {});
+    enqueueSheetWrite(() => writeWithRetry("title", { oldTitle: "", newTitle: eventTitle, senderName: operatorName, sourceGroup: chatInfo.name, sourceGroupId: peerId }));
     return;
   }
 
@@ -545,7 +556,7 @@ async function handleMessage(message) {
       messageDate: message.date ? new Date(message.date * 1000).toLocaleString("zh-CN", { hour12: false, timeZone: "Asia/Shanghai" }) : "",
       messageId: message.id?.toString?.() || "",
     };
-    writeWithRetry("keyword", data).catch(() => {});
+    enqueueSheetWrite(() => writeWithRetry("keyword", data));
   }
 }
 
