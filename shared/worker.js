@@ -81,6 +81,10 @@ function loadConfig() {
 const config = loadConfig();
 const outputChatName = config.outputChatName; // 中转群 (给人看的), 可选
 
+// 启动时间 (秒) — 只处理启动之后的消息, 不拉取历史
+// TG message.date 是 unix 秒. 启动前的消息 (重启 / 首次登入) 直接跳过.
+const BOOT_TIME_SEC = Math.floor(Date.now() / 1000);
+
 // ═════════════════════════════════════════════════════
 // 1. TG 客户端 + Google Sheets 客户端
 // ═════════════════════════════════════════════════════
@@ -479,6 +483,9 @@ function isTitleChangeText(text = "") {
 async function handleMessage(message) {
   if (!message) return;
 
+  // 只处理启动后的消息 (backfill 扫到老消息也跳过, 不拉历史)
+  if (message.date && message.date < BOOT_TIME_SEC) return;
+
   const peerId = extractPeerId(message);
   if (!peerId) return;
 
@@ -671,9 +678,9 @@ async function runBackfill() {
     catch (e) { console.error("handleMessage 报错:", e.message || e); }
   }, new NewMessage({ incoming: true, outgoing: true }));
 
-  // Backfill + pending retry 循环
+  // Backfill 只做"防漏网" (event stream 丢消息时补扫), 扫到启动前的老消息也会被
+  // handleMessage 里的 BOOT_TIME_SEC 检查过滤掉. 启动时不拉历史.
   const backfillIntervalMs = Number(config.keywordSheet?.backfillIntervalMs || 60000);
-  await runBackfill();
   setInterval(runBackfill, backfillIntervalMs).unref();
   setInterval(retryPending, 60000).unref();
 })();
