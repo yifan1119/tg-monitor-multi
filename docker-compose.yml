@@ -73,3 +73,26 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # Caddy 反代 — 给 Web 自动套 HTTPS + Let's Encrypt 证书
+  # 只在 .env 里配了 PUBLIC_DOMAIN 才需要 (走 `--profile https` 启动)
+  # 启用: bash scripts/enable-https.sh   (脚本帮你配 .env + 拉起这个容器)
+  caddy:
+    image: caddy:2-alpine
+    container_name: tg-monitor-multi-caddy
+    restart: unless-stopped
+    profiles: ["https"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      TZ: Asia/Shanghai
+      PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-}
+
+volumes:
+  caddy_data:
+  caddy_config:

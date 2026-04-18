@@ -6,6 +6,9 @@
 # 用法 (干净 Ubuntu / Debian):
 #   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh | bash
 #
+#   # 带 --https 一起启用 HTTPS (Caddy + nip.io 自动证书):
+#   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh --https
+#
 #   # 可配置:
 #   INSTALL_DIR=/opt/tg-monitor-multi \
 #   REPO_URL=https://github.com/yifan1119/tg-monitor-multi.git \
@@ -44,6 +47,16 @@ if [[ -z "${WEB_PORT_EXPLICIT:-}" ]] && [[ -f "$INSTALL_DIR/.env" ]]; then
 fi
 WEB_PORT="${WEB_PORT:-5003}"
 WEB_PORT_AUTO="${WEB_PORT_AUTO:-1}"   # 1=端口被占自动往上找; 0=强制用 WEB_PORT
+
+# ─── 解析命令行参数 ───────────────────────────────
+ENABLE_HTTPS=0
+HTTPS_DOMAIN=""
+for arg in "$@"; do
+  case "$arg" in
+    --https) ENABLE_HTTPS=1 ;;
+    --https=*) ENABLE_HTTPS=1; HTTPS_DOMAIN="${arg#*=}" ;;
+  esac
+done
 
 # 回传 0=被占, 1=空闲
 port_in_use() {
@@ -202,6 +215,17 @@ for i in $(seq 1 60); do
   }
 done
 
+# ─── 5.5 HTTPS (可选) ──────────────────────────────
+if [[ "$ENABLE_HTTPS" -eq 1 ]]; then
+  echo ""
+  log "启用 HTTPS..."
+  if [[ -n "$HTTPS_DOMAIN" ]]; then
+    bash scripts/enable-https.sh "$HTTPS_DOMAIN" || warn "HTTPS 启用失败, 可以之后再跑: bash scripts/enable-https.sh"
+  else
+    bash scripts/enable-https.sh || warn "HTTPS 启用失败, 可以之后再跑: bash scripts/enable-https.sh"
+  fi
+fi
+
 # ─── 6. 完成 ───────────────────────────────────────
 VERSION=$(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo "?")
 VPS_IP=$(curl -fsSL --max-time 3 https://ipinfo.io/ip 2>/dev/null \
@@ -215,7 +239,18 @@ echo -e "${c_bold}════════════════════�
 echo ""
 echo "下一步:"
 echo ""
-echo -e "  开浏览器: ${c_cyan}${c_bold}http://$VPS_IP:$WEB_PORT/setup${c_reset}"
+# 若已启 HTTPS, 优先显示 HTTPS 地址
+HTTPS_URL=""
+if [[ -f .env ]] && grep -q "^PUBLIC_DOMAIN=" .env; then
+  HTTPS_DOMAIN_VAL=$(grep "^PUBLIC_DOMAIN=" .env | tail -1 | cut -d= -f2)
+  [[ -n "$HTTPS_DOMAIN_VAL" ]] && HTTPS_URL="https://$HTTPS_DOMAIN_VAL/setup"
+fi
+if [[ -n "$HTTPS_URL" ]]; then
+  echo -e "  开浏览器: ${c_cyan}${c_bold}${HTTPS_URL}${c_reset}"
+  echo -e "           ${c_yellow}(或 HTTP 后门: http://$VPS_IP:$WEB_PORT/setup)${c_reset}"
+else
+  echo -e "  开浏览器: ${c_cyan}${c_bold}http://$VPS_IP:$WEB_PORT/setup${c_reset}"
+fi
 echo "  走 Setup Wizard:"
 echo "     1) 填 Web 管理员帐密"
 echo "     2) 填 TG API ID / HASH (从 my.telegram.org/apps 取得)"

@@ -1,0 +1,20 @@
+# Caddy 反代配置 — 给 tg-monitor-multi Web 套 HTTPS
+#
+# 用法:
+#   1. 跑 `bash scripts/enable-https.sh` (自动用 nip.io 把 IP 转成域名)
+#      或 `bash scripts/enable-https.sh your-domain.com` (用你自己的域名)
+#   2. 脚本会在 .env 写 PUBLIC_DOMAIN, 然后 docker compose --profile https up -d caddy
+#   3. 等 30s 内 Caddy 自动从 Let's Encrypt 拿证书
+#   4. 访问 https://<PUBLIC_DOMAIN>/  → 反代到 Web 容器的 5003
+#
+# 前提: VPS 80 / 443 端口对外开放 (Let's Encrypt HTTP-01 challenge 要用)
+
+{$PUBLIC_DOMAIN} {
+    reverse_proxy tg-monitor-multi:5003 {
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+    encode gzip
+}

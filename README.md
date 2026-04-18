@@ -121,13 +121,39 @@ cd /opt/tg-monitor-multi && git pull && docker compose up -d
 
 ---
 
+## HTTPS（一键启用，无需域名）
+
+要给中央看板 / 老板提供正经 URL，上 HTTPS 就行：
+
+```bash
+# 无域名 (用 nip.io 把 IP 转域名):
+bash scripts/enable-https.sh
+
+# 有自己的域名 (先把 A 记录指到 VPS):
+bash scripts/enable-https.sh tg.mycompany.com
+```
+
+做什么：
+1. 自动决定 `PUBLIC_DOMAIN`（nip.io 或你给的）
+2. 检查 80/443 空闲，拉起 Caddy 容器
+3. Caddy 从 Let's Encrypt 自动申请 + 续签证书
+4. 访问 `https://<PUBLIC_DOMAIN>/` → 反代到 Web 容器
+
+**首次装就想启 HTTPS**：
+```bash
+curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh --https
+```
+
+**前提**：VPS 80/443 对外开放（Let's Encrypt HTTP-01 验证要用）。
+
+---
+
 ## 安全
 
-MVP 不做 HTTPS / CSRF。
-
 - Port 默认不对公网开 → 防火墙挡
-- 公网访问走 Cloudflare Tunnel 或 Caddy 反代 + HTTPS
+- 要公网访问 → 用上面的 HTTPS 一键脚本
 - `chmod 600 data/system.json secrets/*`
+- MVP 不做 CSRF / rate limit（内部工具够用）
 
 ---
 
