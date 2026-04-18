@@ -4,10 +4,12 @@
 # 裸跑模式: 见 install-bare.sh (进阶 / 开发者用)
 #
 # 用法 (干净 Ubuntu / Debian):
+#   # 默认实例 (一台 VPS 只跑一份):
 #   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh | bash
 #
-#   # 带 --https 一起启用 HTTPS (Caddy + nip.io 自动证书):
-#   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh --https
+#   # 带实例名 (一台 VPS 跑多份 - 比如 SaaS 给不同客户):
+#   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh ivan --https
+#   # ivan 就是客户名, 跑第二份: bash install.sh suzong --https
 #
 #   # 可配置:
 #   INSTALL_DIR=/opt/tg-monitor-multi \
@@ -30,9 +32,27 @@ set -euo pipefail
 # 强制切到存在的目录 (git clone / docker 都依赖有效 cwd)
 cd /tmp 2>/dev/null || cd / || true
 
-# 实例名 (multi-instance). 空 / 未设 = 默认 (向下兼容, 容器名 tg-monitor-multi).
-# INSTANCE=ivan → 另建一份完全独立 (容器名 tg-monitor-multi-ivan).
-INSTANCE="${INSTANCE:-}"
+# 实例名 — 支持 3 种传法, 优先级: 位置参数 > env var > 空 (默认实例).
+#   bash install.sh                  # 默认, 容器名 tg-monitor-multi
+#   bash install.sh ivan             # 客户实例, 容器名 tg-monitor-multi-ivan
+#   bash install.sh ivan --https     # 顺带开 HTTPS
+#   INSTANCE=ivan bash install.sh    # env var (向下兼容)
+INSTANCE_ARG=""
+# 第一个非 -- 开头的位置参数视为 INSTANCE (必须以字母/数字开头, 避免把 --flag 当 instance)
+for arg in "$@"; do
+  if [[ ! "$arg" =~ ^-- ]] && [[ "$arg" =~ ^[a-z0-9] ]]; then
+    INSTANCE_ARG="$arg"
+    break
+  fi
+done
+
+INSTANCE="${INSTANCE_ARG:-${INSTANCE:-}}"
+# 字母数字 - _ 以外的字符拒绝 (防目录 / 容器名注入)
+if [[ -n "$INSTANCE" ]] && [[ ! "$INSTANCE" =~ ^[a-z][a-z0-9_-]*$ ]]; then
+  echo "✗ INSTANCE 格式错: '$INSTANCE' (必须小写字母开头, 只含 a-z / 0-9 / - / _)"
+  exit 1
+fi
+
 if [[ -n "$INSTANCE" ]]; then
   INSTANCE_SUFFIX="-$INSTANCE"
 else
