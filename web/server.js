@@ -57,6 +57,7 @@ app.use((req, res, next) => {
   res.locals.active = "";
   res.locals.showNav = true;
   res.locals.currentUser = auth.getCurrentUser(req);
+  res.locals.instance = process.env.INSTANCE || "";
   next();
 });
 

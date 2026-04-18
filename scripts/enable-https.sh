@@ -22,10 +22,17 @@ ok()   { echo -e "${c_green}✓${c_reset} $*"; }
 warn() { echo -e "${c_yellow}⚠${c_reset} $*"; }
 err()  { echo -e "${c_red}✗${c_reset} $*" >&2; }
 
-OWN_CADDY="tg-monitor-multi-caddy"
-WEB_CONTAINER="tg-monitor-multi"
+# 读 INSTANCE (从 .env 或 env var). 空 = 默认实例.
+INSTANCE="${INSTANCE:-}"
+if [[ -z "$INSTANCE" ]] && [[ -f .env ]]; then
+  INSTANCE=$(grep "^INSTANCE=" .env 2>/dev/null | tail -1 | cut -d= -f2 | tr -d '[:space:]')
+fi
+if [[ -n "$INSTANCE" ]]; then INSTANCE_SUFFIX="-$INSTANCE"; else INSTANCE_SUFFIX=""; fi
+
+OWN_CADDY="tg-monitor-multi-caddy${INSTANCE_SUFFIX}"
+WEB_CONTAINER="tg-monitor-multi${INSTANCE_SUFFIX}"
 WEB_PORT_IN_CONTAINER=5003
-SELF_TAG="tg-monitor-multi"
+SELF_TAG="tg-monitor-multi${INSTANCE_SUFFIX}"
 
 echo -e "${c_bold}"
 echo "═══════════════════════════════════════════════════"
@@ -34,9 +41,13 @@ echo "════════════════════════�
 echo -e "${c_reset}"
 
 # ─── 1. 决定域名 ───────────────────────────────────
-# nip.io 前缀 — 让多项目共存一台 VPS 时域名不撞 (默认 multi.)
-# 用 SUBDOMAIN=xxx bash scripts/enable-https.sh 改 (空字符串 = 纯 IP 形式)
-SUBDOMAIN="${SUBDOMAIN-multi}"
+# nip.io 前缀 — 多实例按 INSTANCE 区分. 默认实例 "multi", 其他 "multi-<INSTANCE>".
+# 用 SUBDOMAIN=xxx bash scripts/enable-https.sh 手动覆盖.
+if [[ -z "${SUBDOMAIN+x}" ]]; then
+  if [[ -z "$INSTANCE" ]]; then SUBDOMAIN="multi"
+  else SUBDOMAIN="multi-$INSTANCE"
+  fi
+fi
 
 if [[ -n "${1:-}" ]]; then
   DOMAIN="$1"

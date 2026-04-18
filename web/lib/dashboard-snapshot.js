@@ -106,6 +106,7 @@ async function snapshot() {
     ok: true,
     ts: nowBJ(),
     product: "tg-monitor-multi",
+    instance: process.env.INSTANCE || "",
     version: readVersion(),
     company: {
       name: sys.companyName || "",

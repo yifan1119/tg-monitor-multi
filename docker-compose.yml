@@ -1,27 +1,30 @@
 # tg-monitor-multi — Docker Compose (主推部署方式)
 #
+# Multi-instance 支持 (向下兼容):
+#   未设 INSTANCE       → tg-monitor-multi / 原行为 (现有部署无需改)
+#   INSTANCE=ivan       → tg-monitor-multi-ivan      (另一份, 完全独立)
+#   INSTANCE=client-a   → tg-monitor-multi-client-a
+#
+# INSTANCE_SUFFIX 由 install.sh 算好写入 .env:
+#   INSTANCE 空        → INSTANCE_SUFFIX=""
+#   INSTANCE=xxx       → INSTANCE_SUFFIX="-xxx"
+#
 # 用法:
 #   docker compose up -d --build        # 首次 / 升級後 rebuild
 #   docker compose logs -f              # 看 log
 #   docker compose restart              # 重啟容器
 #   docker compose down                 # 停止 (資料不刪, volume 保留)
 #   docker compose down -v              # 停止 + 清 volume (危險! 會刪 depts/)
-#
-# volumes (R3 契約: 升級絕不動):
-#   ./depts/                 ← 每部門 config / .env / session.txt / state/
-#   ./global/                ← 全局進程目錄
-#   ./data/                  ← 系統設置 (system.json)
-#   ./secrets/google-sa.json ← Google Service Account (單一檔案 mount)
-#   ./.backups/              ← update.sh 自動備份
-#   ./.healthcheck/          ← healthcheck log (若啟用)
+
+name: tg-monitor-multi${INSTANCE_SUFFIX:-}
 
 services:
   tg-monitor:
     build:
       context: .
       dockerfile: Dockerfile
-    image: tg-monitor-multi:local
-    container_name: tg-monitor-multi
+    image: tg-monitor-multi${INSTANCE_SUFFIX:-}:local
+    container_name: tg-monitor-multi${INSTANCE_SUFFIX:-}
     restart: unless-stopped
 
     ports:
@@ -56,6 +59,8 @@ services:
       # 宿主機安裝目錄 (從 .env 讀, install.sh 自動寫入).
       # Web「檢查更新」會顯示「cd <這個路徑> && bash scripts/update.sh」給用戶.
       HOST_INSTALL_DIR: "${HOST_INSTALL_DIR:-/opt/tg-monitor-multi}"
+      # 实例名 (multi-instance 场景, /settings 和 metrics API 会露出).
+      INSTANCE: "${INSTANCE:-}"
 
     # 若容器內 setup 要加 cron 健康檢查, 用宿主機的 pm2 直接跑, 這裡不需要
     # (單容器自給自足, 不依賴宿主機 pm2)
@@ -79,7 +84,7 @@ services:
   # 启用: bash scripts/enable-https.sh   (脚本帮你配 .env + 拉起这个容器)
   caddy:
     image: caddy:2-alpine
-    container_name: tg-monitor-multi-caddy
+    container_name: tg-monitor-multi-caddy${INSTANCE_SUFFIX:-}
     restart: unless-stopped
     profiles: ["https"]
     ports:
@@ -92,6 +97,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       PUBLIC_DOMAIN: ${PUBLIC_DOMAIN:-}
+      UPSTREAM: tg-monitor-multi${INSTANCE_SUFFIX:-}:5003
 
 volumes:
   caddy_data:

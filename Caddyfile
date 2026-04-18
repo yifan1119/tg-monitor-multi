@@ -10,7 +10,7 @@
 # 前提: VPS 80 / 443 端口对外开放 (Let's Encrypt HTTP-01 challenge 要用)
 
 {$PUBLIC_DOMAIN} {
-    reverse_proxy tg-monitor-multi:5003 {
+    reverse_proxy {$UPSTREAM:tg-monitor-multi-default:5003} {
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}

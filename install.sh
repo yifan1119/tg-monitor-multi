@@ -30,7 +30,19 @@ set -euo pipefail
 # 强制切到存在的目录 (git clone / docker 都依赖有效 cwd)
 cd /tmp 2>/dev/null || cd / || true
 
-INSTALL_DIR="${INSTALL_DIR:-/opt/tg-monitor-multi}"
+# 实例名 (multi-instance). 空 / 未设 = 默认 (向下兼容, 容器名 tg-monitor-multi).
+# INSTANCE=ivan → 另建一份完全独立 (容器名 tg-monitor-multi-ivan).
+INSTANCE="${INSTANCE:-}"
+if [[ -n "$INSTANCE" ]]; then
+  INSTANCE_SUFFIX="-$INSTANCE"
+else
+  INSTANCE_SUFFIX=""
+fi
+
+# INSTALL_DIR 默认依 INSTANCE 决定
+if [[ -z "${INSTALL_DIR:-}" ]]; then
+  INSTALL_DIR="/opt/tg-monitor-multi${INSTANCE_SUFFIX}"
+fi
 REPO_URL="${REPO_URL:-https://github.com/yifan1119/tg-monitor-multi.git}"
 BRANCH="${BRANCH:-main}"
 
@@ -161,10 +173,12 @@ if [[ ! -f secrets/google-service-account.json ]]; then
   ok "建立 secrets/google-service-account.json 占位 (setup 后会被 Web 上传覆写)"
 fi
 
-# 先停掉自己的旧容器, 避免它占着端口干扰下面检测
-if docker ps --format '{{.Names}}' | grep -qx tg-monitor-multi; then
-  log "停掉旧的 tg-monitor-multi 容器 (避免端口冲突检测误判)"
-  docker compose down >/dev/null 2>&1 || docker stop tg-monitor-multi >/dev/null 2>&1 || true
+OWN_CONTAINER="tg-monitor-multi${INSTANCE_SUFFIX}"
+
+# 先停掉自己的旧容器 (只停同 INSTANCE 的, 不碰其他实例), 避免它占着端口干扰下面检测
+if docker ps --format '{{.Names}}' | grep -qx "$OWN_CONTAINER"; then
+  log "停掉旧的 $OWN_CONTAINER 容器 (避免端口冲突检测误判)"
+  docker compose down >/dev/null 2>&1 || docker stop "$OWN_CONTAINER" >/dev/null 2>&1 || true
 fi
 
 # 端口检测: 被占就自动往上找 (除非 WEB_PORT_AUTO=0)
@@ -190,8 +204,10 @@ cat > .env <<EOF
 # Docker compose 部署层配置 (install.sh 自动写, 手改会被下次 install 覆盖)
 WEB_PORT=$WEB_PORT
 HOST_INSTALL_DIR=$INSTALL_DIR
+INSTANCE=$INSTANCE
+INSTANCE_SUFFIX=$INSTANCE_SUFFIX
 EOF
-ok "写入 .env (WEB_PORT=$WEB_PORT, HOST_INSTALL_DIR=$INSTALL_DIR)"
+ok "写入 .env (WEB_PORT=$WEB_PORT${INSTANCE:+, INSTANCE=$INSTANCE})"
 
 # ─── 4. Docker build + up ──────────────────────────
 log "docker compose up (build + start)..."
@@ -200,7 +216,7 @@ docker compose up -d --build
 # ─── 5. 等 container healthy ───────────────────────
 log "等 container healthy..."
 for i in $(seq 1 60); do
-  status=$(docker inspect -f '{{.State.Health.Status}}' tg-monitor-multi 2>/dev/null || echo "none")
+  status=$(docker inspect -f '{{.State.Health.Status}}' "$OWN_CONTAINER" 2>/dev/null || echo "none")
   if [[ "$status" == "healthy" ]]; then
     ok "container healthy (${i}s)"
     break
