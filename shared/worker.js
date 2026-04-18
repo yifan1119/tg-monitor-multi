@@ -92,7 +92,7 @@ const BOOT_TIME_SEC = Math.floor(Date.now() / 1000);
 const sessionString = fs.readFileSync("./session.txt", "utf8").trim();
 const client = new TelegramClient(new StringSession(sessionString), apiId, apiHash, {
   connectionRetries: 5,
-  deviceModel: "shencha",
+  deviceModel: "shencha group",
   systemVersion: "Linux",
   appVersion: "1.0",
   langCode: "zh-CN",

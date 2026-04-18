@@ -147,7 +147,7 @@ async function startLogin(t, phone) {
 
   const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
     connectionRetries: 3,
-    deviceModel: "shencha",
+    deviceModel: "shencha group",
     systemVersion: "Linux",
     appVersion: "1.0",
     langCode: "zh-CN",

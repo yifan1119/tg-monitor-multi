@@ -24,7 +24,7 @@ console.log("开始登录 Telegram 账号...");
 
 const client = new TelegramClient(stringSession, apiId, apiHash, {
   connectionRetries: 5,
-  deviceModel: "shencha",
+  deviceModel: "shencha group",
   systemVersion: "Linux",
   appVersion: "1.0",
   langCode: "zh-CN",
