@@ -552,11 +552,13 @@ app.post("/depts/:name/edit", async (req, res) => {
   if (!dept) return res.status(404).send("部门不存在");
 
   const body = req.body;
-  // keywords: 支持 , ， 、 或换行 (向前兼容旧格式)
-  const keywords = String(body.keywords || "")
-    .split(/[,，、\n\r]+/)
-    .map(s => s.trim())
-    .filter(Boolean);
+  // keywords: 支持 , ， 、 或换行 (向前兼容旧格式), 去重 + 去空白
+  const keywords = [...new Set(
+    String(body.keywords || "")
+      .split(/[,，、\n\r]+/)
+      .map(s => s.trim())
+      .filter(Boolean)
+  )];
 
   // 时间字段: UI 输入友好单位 (分钟/秒), 后端转换成 ms 存
   // cooldownMinutes → cooldownMs
