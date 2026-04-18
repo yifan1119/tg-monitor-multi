@@ -80,6 +80,62 @@
 </div>
 
 <div class="panel">
+  <div class="panel-title">外部 API · 中央看板接入</div>
+  <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
+    给中央看板 / 监控系统用 Bearer token 拉部门状态 + 告警数据. Schema 跟姊妹项目对齐.
+    <strong style="color:var(--yellow);">公网暴露建议先启 HTTPS</strong>
+    (<code>bash scripts/enable-https.sh</code>) 避免 token 明文传输.
+  </div>
+  <table>
+    <tbody>
+      <tr>
+        <td style="color: var(--text-dim); width: 140px; vertical-align: top;">Metrics Token</td>
+        <td>
+          <code id="metrics-token" style="font-size:0.8rem;user-select:all;word-break:break-all;"><%= systemInfo.metricsToken %></code>
+          <button type="button" class="btn ghost" style="margin-left:0.5rem;padding:0.2rem 0.6rem;font-size:0.72rem;"
+            onclick="navigator.clipboard.writeText(document.getElementById('metrics-token').textContent).then(()=>this.textContent='已复制')">复制</button>
+          <button type="button" class="btn ghost" style="padding:0.2rem 0.6rem;font-size:0.72rem;color:var(--yellow);border-color:var(--yellow);"
+            onclick="regenMetricsToken()">重置</button>
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text-dim); vertical-align: top;">调用示例</td>
+        <td>
+          <pre style="background:rgba(7,10,21,0.6);padding:0.75rem;border-radius:6px;font-size:0.75rem;margin:0;overflow-x:auto;"><code>curl -H "Authorization: Bearer <%= systemInfo.metricsToken %>" \
+  <%= systemInfo.publicDomain ? `https://${systemInfo.publicDomain}` : 'http://<VPS_IP>:PORT' %>/api/v1/metrics</code></pre>
+        </td>
+      </tr>
+      <tr>
+        <td style="color: var(--text-dim);">最近调用</td>
+        <td><span id="metrics-log-meta" style="font-size:0.8rem;color:var(--text-dim);">载入中...</span></td>
+      </tr>
+    </tbody>
+  </table>
+  <script>
+    async function regenMetricsToken() {
+      if (!confirm("重置 token 会让现在所有接入立即失效, 要通知调用方换新 token. 继续?")) return;
+      try {
+        const r = await fetch("/api/settings/metrics_token/regenerate", { method: "POST" }).then(r => r.json());
+        if (r.ok) {
+          document.getElementById("metrics-token").textContent = r.token;
+          alert("已重置. 记得把新 token 给调用方.");
+        } else {
+          alert("重置失败: " + r.error);
+        }
+      } catch (e) { alert("请求失败: " + e.message); }
+    }
+    fetch("/api/v1/metrics/access_log").then(r => r.json()).then(r => {
+      const el = document.getElementById("metrics-log-meta");
+      if (!el) return;
+      if (!r.ok) { el.textContent = "读取失败"; return; }
+      if (!r.last_access) { el.innerHTML = '<span style="color:var(--text-dim);">还没被调用过</span>'; return; }
+      const t = new Date(r.last_access).toLocaleString("zh-CN", { hour12: false });
+      el.innerHTML = `<strong>${r.count_24h}</strong> 次 / 24h · 最近: <code>${t}</code>`;
+    }).catch(() => {});
+  </script>
+</div>
+
+<div class="panel">
   <div class="panel-title">系统信息</div>
   <table>
     <tbody>

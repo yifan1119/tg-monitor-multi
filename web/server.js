@@ -786,6 +786,13 @@ app.get("/settings", async (req, res) => {
       gsaEmail,
       tgApiId: sys.tgApiId || "",
       tgApiHash: sys.tgApiHash || "",
+      metricsToken: sys.metricsToken || ensureMetricsToken(),
+      publicDomain: (fs.existsSync(path.join(ROOT, ".env")) && (() => {
+        try {
+          const m = fs.readFileSync(path.join(ROOT, ".env"), "utf8").match(/^PUBLIC_DOMAIN=(.+)$/m);
+          return m ? m[1].trim() : "";
+        } catch { return ""; }
+      })()) || "",
     },
     flash: req.query.flash || null,
     error: req.query.error || null,
@@ -1275,6 +1282,110 @@ app.post("/ops/rollback/:ts", async (req, res) => {
   try { const r = updateManager.rollback(req.params.ts); renderUpdateResult(res, `回滚结果 · ${req.params.ts}`, r, null); }
   catch (e) { renderUpdateResult(res, `回滚失败 · ${req.params.ts}`, { log: e.message }, e.message); }
 });
+
+
+// ═════════════════════════════════════════════════════
+// 外部 API — /api/v1/metrics
+// 给中央看板 / 监控系统拉数据. Bearer token 鉴权.
+// Schema 对齐姊妹项目 tg-monitor-template 的 snapshot().
+// ═════════════════════════════════════════════════════
+const crypto = require("crypto");
+const dashboardSnapshot = require("./lib/dashboard-snapshot");
+const METRICS_LOG = path.join(DATA_DIR, "metrics-access.jsonl");
+
+function genMetricsToken() {
+  return crypto.randomBytes(24).toString("base64url"); // 32 chars, url-safe
+}
+
+// 取 token, 没就生成 + 写回 system.json. 同时保证 data/ 存在.
+function ensureMetricsToken() {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+  if (!sys.metricsToken) {
+    sys.metricsToken = genMetricsToken();
+    fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
+  }
+  return sys.metricsToken;
+}
+
+function logMetricsAccess(ok, reason, ip) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const entry = { ts: new Date().toISOString(), ip, ok, reason };
+    fs.appendFileSync(METRICS_LOG, JSON.stringify(entry) + "\n");
+    // 简单 rotate: >1MB 切一下, 保留最近 500 行
+    const st = fs.statSync(METRICS_LOG);
+    if (st.size > 1024 * 1024) {
+      const lines = fs.readFileSync(METRICS_LOG, "utf8").trim().split("\n");
+      fs.writeFileSync(METRICS_LOG, lines.slice(-500).join("\n") + "\n");
+    }
+  } catch { /* log 写失败不影响主流程 */ }
+}
+
+app.get("/api/v1/metrics", async (req, res) => {
+  const ip = (req.headers["x-forwarded-for"] || req.ip || "").toString().split(",")[0].trim();
+  const expected = ensureMetricsToken();
+
+  // 从 Authorization: Bearer xxx 或 ?token= 取
+  let provided = "";
+  const auth = req.headers.authorization || "";
+  if (auth.toLowerCase().startsWith("bearer ")) provided = auth.slice(7).trim();
+  else provided = String(req.query.token || "").trim();
+
+  // 等长 + timingSafeEqual 防时序攻击
+  let authorized = false;
+  if (provided && provided.length === expected.length) {
+    authorized = crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  }
+  if (!authorized) {
+    logMetricsAccess(false, "unauthorized", ip);
+    return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+
+  try {
+    const data = await dashboardSnapshot.snapshot();
+    logMetricsAccess(true, "ok", ip);
+    res.json(data);
+  } catch (e) {
+    console.error("metrics snapshot failed:", e);
+    logMetricsAccess(false, `snapshot_error: ${e.message}`, ip);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.get("/api/v1/metrics/access_log", (_req, res) => {
+  let entries = [];
+  try {
+    if (fs.existsSync(METRICS_LOG)) {
+      entries = fs.readFileSync(METRICS_LOG, "utf8").trim().split("\n")
+        .filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } })
+        .filter(Boolean);
+    }
+  } catch { /* 读失败就空 */ }
+  const now = Date.now();
+  const count24h = entries.filter(e => now - Date.parse(e.ts) < 86400000).length;
+  const last = entries[entries.length - 1] || null;
+  res.json({
+    ok: true,
+    count_24h: count24h,
+    last_access: last ? last.ts : null,
+    recent: entries.slice(-20).reverse(),
+  });
+});
+
+app.post("/api/settings/metrics_token/regenerate", (_req, res) => {
+  try {
+    const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+    sys.metricsToken = genMetricsToken();
+    fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
+    res.json({ ok: true, token: sys.metricsToken });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// 首次启动时生成 token (下次 /setup 提交时会再次确保)
+try { ensureMetricsToken(); } catch (e) { console.warn("metrics token init:", e.message); }
 
 
 // ─── 404 (必须放最后, 让所有具体路由先匹配) ───────
