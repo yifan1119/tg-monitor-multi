@@ -794,7 +794,10 @@ function handleLoginFlow(target, extraCtx) {
         renderLoginPage(res, target, extraCtx, { step: "done", bytes: r.bytes });
       } catch (e) {
         console.error("[tg-login/password]", target.key, e.message);
-        renderLoginPage(res, target, extraCtx, { step: "password", error: e.message }, 400);
+        // session 丢了 (TTL 过期 / 进程重启) → 跳回 phone 步骤重走, 不卡死在 password 页
+        const lostSession = /没有进行中|已过期/.test(e.message);
+        renderLoginPage(res, target, extraCtx,
+          { step: lostSession ? "phone" : "password", error: e.message }, 400);
       }
     },
     abort: (req, res) => {

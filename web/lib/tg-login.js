@@ -26,7 +26,7 @@ const ROOT = path.resolve(__dirname, "..", "..");
 // target.key → session (cross-request state)
 // status: "awaiting_code" | "awaiting_password"
 const sessions = new Map();
-const SESSION_TTL_MS = 10 * 60 * 1000;
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 分钟 (用户翻 TG 找 2FA 密码要时间)
 
 setInterval(() => {
   const now = Date.now();
@@ -201,7 +201,7 @@ async function submitCode(t, code) {
 
 async function submitPassword(t, password) {
   const sess = sessions.get(t.key);
-  if (!sess) throw new Error("没有进行中的登入");
+  if (!sess) throw new Error("登入流程已过期 (30 分钟未完成), 请重新走手机号 → 验证码步骤");
   if (sess.status !== "awaiting_password") throw new Error(`当前状态 ${sess.status}, 不接受密码`);
   if (!password) throw new Error("2FA 密码不能为空");
 
