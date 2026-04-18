@@ -23,9 +23,17 @@
 #   .backups/    — 升级备份
 #   → 都 mv 到 /root/tg-monitor-backup-<instance>-<ts>/ 免得卸载后误操作
 
-set -euo pipefail
+# 改用显式错误处理 (不 set -e, 避免单个命令失败就静默退出).
+# 只保留 set -u (未定义变量 error).
+set -u
 
-cd "$(dirname "$0")/.."
+SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+if [[ -z "$SCRIPT_DIR" ]]; then
+  echo "✗ 找不到脚本目录" >&2; exit 1
+fi
+cd "$SCRIPT_DIR/.." || { echo "✗ cd 失败: $SCRIPT_DIR/.." >&2; exit 1; }
+
+echo ">>> uninstall.sh 启动, 工作目录: $(pwd)"
 
 c_green='\033[0;32m'; c_yellow='\033[0;33m'; c_red='\033[0;31m'
 c_cyan='\033[0;36m'; c_bold='\033[1m'; c_reset='\033[0m'
@@ -44,7 +52,11 @@ for arg in "$@"; do
     --purge|--all) PURGE=1 ;;
     --force|-y) FORCE=1 ;;
     --*) warn "未知参数: $arg (忽略)" ;;
-    *) [[ -z "$INSTANCE_ARG" ]] && INSTANCE_ARG="$arg" ;;
+    *)
+      if [[ -z "$INSTANCE_ARG" ]]; then
+        INSTANCE_ARG="$arg"
+      fi
+      ;;
   esac
 done
 
