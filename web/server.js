@@ -653,18 +653,17 @@ function pm2Exec(action, nameGlob) {
   });
 }
 
+// v0.4 合并成单 worker, 进程名统一 tg-worker-<dept>. 不再用 glob 防 pm2 匹配问题.
 async function restartDept(name) {
-  // 用 glob 同时管 3 类进程
-  return pm2Exec("restart", `tg-*-${name}`);
+  return pm2Exec("restart", `tg-worker-${name}`);
 }
 async function startDept(name) {
-  // 先 try start (若已跑会错 but 无害), fallback start ecosystem --only
   const ecosystemPath = path.join(ROOT, "ecosystem.config.js");
   if (!fs.existsSync(ecosystemPath)) {
     return { ok: false, stderr: "ecosystem.config.js 不存在, 请先新增部门后再启动" };
   }
   return new Promise((resolve) => {
-    execFile("pm2", ["start", ecosystemPath, "--only", `tg-listener-${name},tg-system-events-${name},tg-sheet-writer-${name}`],
+    execFile("pm2", ["start", ecosystemPath, "--only", `tg-worker-${name}`],
       { cwd: ROOT },
       (err, stdout, stderr) => {
         if (err) console.error(`[pm2 start ${name}]`, stderr || err.message);
@@ -673,7 +672,7 @@ async function startDept(name) {
   });
 }
 async function stopDept(name) {
-  return pm2Exec("stop", `tg-*-${name}`);
+  return pm2Exec("stop", `tg-worker-${name}`);
 }
 
 app.post("/depts/:name/restart", async (req, res) => {
@@ -702,7 +701,7 @@ app.post("/depts/:name/delete", async (req, res) => {
     const src = path.join(DD, name);
     if (!fs.existsSync(src)) return res.status(404).send("部门不存在");
     // 先停 PM2
-    await pm2Exec("delete", `tg-*-${name}`);
+    await pm2Exec("delete", `tg-worker-${name}`);
     // 搬到 .trash
     const trashDir = path.join(DD, `.trash-${Date.now()}-${name}`);
     fs.renameSync(src, trashDir);
