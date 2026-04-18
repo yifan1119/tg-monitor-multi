@@ -108,6 +108,9 @@ function copySessionFrom(targetTo, sourceKey) {
   const dstPath = path.join(targetTo.baseDir, "session.txt");
   const content = fs.readFileSync(srcPath);
   fs.writeFileSync(dstPath, content);
+  // 清 dead 标记
+  const deadMarker = path.join(targetTo.baseDir, "state", "session-dead.json");
+  try { if (fs.existsSync(deadMarker)) fs.unlinkSync(deadMarker); } catch {}
   console.log(`[tg-login] ✓ session 复制 ${srcType}:${srcName} → ${targetTo.key} (${content.length} bytes)`);
   return { ok: true, bytes: content.length, source: `${srcType}/${srcName}` };
 }
@@ -222,6 +225,10 @@ async function finalizeLogin(t) {
   const sessionPath = path.join(t.baseDir, "session.txt");
   fs.writeFileSync(sessionPath, sessionString);
   console.log(`[tg-login] ✓ ${t.label} session 已写入 (${sessionString.length} bytes)`);
+
+  // 重新登入后清掉"session 死亡"标记, worker 下次起来就是正常状态
+  const deadMarker = path.join(t.baseDir, "state", "session-dead.json");
+  try { if (fs.existsSync(deadMarker)) fs.unlinkSync(deadMarker); } catch {}
 
   try { await sess.client.disconnect(); } catch {}
   sessions.delete(t.key);

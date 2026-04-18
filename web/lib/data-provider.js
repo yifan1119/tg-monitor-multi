@@ -42,13 +42,18 @@ async function realListDepartments() {
     const config = readJsonSafe(path.join(deptDir, "config.json")) || {};
     const sessionExists = fs.existsSync(path.join(deptDir, "session.txt"));
     const sessionStat = sessionExists ? fs.statSync(path.join(deptDir, "session.txt")) : null;
+    // worker 检测到 session 被撤销会写这文件; 有它就算 session 死了
+    const sessionDeadFile = path.join(deptDir, "state", "session-dead.json");
+    const sessionDead = readJsonSafe(sessionDeadFile);
+    const sessionOk = sessionExists && sessionStat.size > 0 && !sessionDead;
     return {
       name,
       display: config.display || name,
       outputChat: config.outputChatName || "-",
       sheetId: config.spreadsheetId || "",
       sheetTab: config.sheetName || "-",
-      sessionOk: sessionExists && sessionStat.size > 0,
+      sessionOk,
+      sessionDead: sessionDead ? { reason: sessionDead.reason, ts: sessionDead.ts } : null,
       lastMsg: "-",
       hit24h: 0,
     };

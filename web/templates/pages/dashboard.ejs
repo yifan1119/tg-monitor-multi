@@ -147,6 +147,14 @@
         <a href="/depts/<%= d.name %>" class="dept-card">
           <div class="name"><span class="dot <%= dotClass %>"></span><%= d.name %></div>
           <div class="display"><%= d.display %> / <%= d.outputChat %></div>
+          <% if (d.sessionDead) { %>
+            <div style="color:var(--red);font-size:0.72rem;margin:0.3rem 0;">
+              ⚠ TG session 失效 · 需重新登入<br>
+              <span style="color:var(--text-dim);"><%= new Date(d.sessionDead.ts).toLocaleString("zh-CN",{hour12:false}) %></span>
+            </div>
+          <% } else if (!d.sessionOk) { %>
+            <div style="color:var(--yellow);font-size:0.72rem;margin:0.3rem 0;">○ 尚未登入 TG</div>
+          <% } %>
           <div class="meta">
             <span>24h 命中: <strong style="color:var(--accent);"><%= d.hit24h %></strong></span>
             <span><%= d.lastMsg %></span>

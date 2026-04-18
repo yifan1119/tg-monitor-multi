@@ -649,11 +649,62 @@ async function runBackfill() {
 }
 
 // ═════════════════════════════════════════════════════
+// Session 死亡检测
+//   TG 管理员在"活跃会话"里踢掉本 session 后, session.txt 其实已失效.
+//   默认的 gram.js 不会主动通知, 工人进程会一直报 AUTH_KEY_UNREGISTERED.
+//   我们每 60s getMe() 一次, 抓到 auth 失效就:
+//     1) 写 state/session-dead.json 让 Web 能显示
+//     2) 清空 session.txt (Web sessionOk 检查会返 false)
+//     3) process.exit(1) — pm2 会尝试重启但缺 session 会立刻再挂, 状态就 offline
+// ═════════════════════════════════════════════════════
+
+function isAuthDeadError(err) {
+  const msg = String(err?.message || err?.errorMessage || err?.code || err || "");
+  return /AUTH_KEY_UNREGISTERED|SESSION_REVOKED|AUTH_KEY_DUPLICATED|USER_DEACTIVATED|AUTH_KEY_INVALID/i.test(msg);
+}
+
+function markSessionDead(reason) {
+  try {
+    if (!fs.existsSync("./state")) fs.mkdirSync("./state", { recursive: true });
+    fs.writeFileSync("./state/session-dead.json", JSON.stringify({
+      ts: new Date().toISOString(),
+      reason,
+      dept: path.basename(process.cwd()),
+    }, null, 2) + "\n");
+    // 清空 session.txt (Web sessionOk 直接失败, 不再骗人)
+    try { fs.writeFileSync("./session.txt", ""); } catch {}
+    console.error(`[session-dead] ${reason}`);
+  } catch (e) {
+    console.error("markSessionDead 写失败:", e.message);
+  }
+}
+
+async function sessionHeartbeat() {
+  try {
+    await client.getMe();
+  } catch (e) {
+    if (isAuthDeadError(e)) {
+      markSessionDead(String(e?.message || e));
+      setTimeout(() => process.exit(1), 500); // 给日志一点时间落盘
+    }
+    // 其他错误 (网络 / 超时) 当噪声忽略
+  }
+}
+
+// ═════════════════════════════════════════════════════
 // 6. 启动
 // ═════════════════════════════════════════════════════
 
 (async () => {
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (e) {
+    if (isAuthDeadError(e)) {
+      markSessionDead(String(e?.message || e));
+      process.exit(1);
+    }
+    throw e;
+  }
 
   // 首次启动: 扫所有群把当前名字缓存, 后续改名才能显示原名
   await primeTitleCache();
@@ -688,4 +739,7 @@ async function runBackfill() {
   const backfillIntervalMs = Number(config.keywordSheet?.backfillIntervalMs || 60000);
   setInterval(runBackfill, backfillIntervalMs).unref();
   setInterval(retryPending, 60000).unref();
+
+  // Session 心跳: 60s 一次 getMe, 被 TG 踢会自愿退出让 Web 能显示 offline
+  setInterval(() => sessionHeartbeat().catch(() => {}), 60 * 1000).unref();
 })();

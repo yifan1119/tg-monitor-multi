@@ -105,10 +105,15 @@ function start() {
 }
 
 async function sendResetCode(userId, code) {
+  return sendDM(userId,
+    `🔑 密码重置验证码: ${code}\n\n5 分钟有效, 只能用一次.\n如果不是你操作的请忽略.`);
+}
+
+// 通用 DM — 给 session-watcher 等其他模块用
+async function sendDM(userId, text) {
   if (!bot) return { ok: false, error: "bot 未启动 (检查 botToken)" };
   try {
-    await bot.sendMessage(userId,
-      `🔑 密码重置验证码: ${code}\n\n5 分钟有效, 只能用一次.\n如果不是你操作的请忽略.`);
+    await bot.sendMessage(userId, text);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message };
@@ -129,4 +134,4 @@ function status() {
 // 启动时拉一次; web 收到 token 更新后调 restart()
 function restart() { _stop(); start(); }
 
-module.exports = { start, restart, sendResetCode, status };
+module.exports = { start, restart, sendResetCode, sendDM, status };

@@ -21,6 +21,7 @@ const auth = require("./lib/auth");
 const authAudit = require("./lib/auth-audit");
 const adminReset = require("./lib/admin-reset");
 const adminBot = require("./lib/tg-admin-bot");
+const sessionWatcher = require("./lib/session-watcher");
 
 // multer: 处理 multipart/form-data (档案上传). 内存储存, 200KB 上限 (Google SA JSON 通常 ~2KB)
 const upload = multer({
@@ -1605,6 +1606,9 @@ app.post("/api/auth/change_password", (req, res) => {
 
 // 启动 bot (若已配 token)
 try { adminBot.start(); } catch (e) { console.warn("admin-bot start:", e.message); }
+
+// 启动 session 死亡 watcher (每 5 分钟扫部门, 新死的 DM 管理员)
+try { sessionWatcher.start(); } catch (e) { console.warn("session-watcher start:", e.message); }
 
 
 // ─── 404 (必须放最后, 让所有具体路由先匹配) ───────
