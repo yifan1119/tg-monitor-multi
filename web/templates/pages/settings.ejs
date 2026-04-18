@@ -80,6 +80,82 @@
 </div>
 
 <div class="panel">
+  <div class="panel-title">账号安全 · TG Bot 绑定</div>
+  <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
+    <strong style="color:var(--yellow);">强烈建议绑定 TG</strong> — 忘密时 bot 会 DM 发验证码. 没绑过只能 SSH 到服务器手动重置.
+  </div>
+
+  <!-- Bot token 配置 -->
+  <div style="padding:0.75rem;background:rgba(7,10,21,0.4);border-radius:8px;margin-bottom:1rem;">
+    <div style="font-size:0.8rem;margin-bottom:0.5rem;"><strong>1. 配 Bot Token</strong> <span style="color:var(--text-dim);">在 TG 找 @BotFather 发 /newbot 拿 token</span></div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+      <input type="text" id="bot-token-input" placeholder="123456789:ABC-DEF..." style="flex:1;min-width:260px;font-family:'JetBrains Mono',monospace;font-size:0.82rem;">
+      <button type="button" class="btn ghost" style="padding:0.35rem 0.8rem;font-size:0.78rem;" onclick="saveBotToken()">保存并启动</button>
+      <button type="button" class="btn ghost" style="padding:0.35rem 0.8rem;font-size:0.78rem;color:var(--red);border-color:var(--red);" onclick="clearBotToken()">清除</button>
+    </div>
+    <div id="bot-status" style="font-size:0.78rem;color:var(--text-dim);margin-top:0.5rem;">查询中...</div>
+  </div>
+
+  <!-- 绑定 TG 账号 -->
+  <div style="padding:0.75rem;background:rgba(7,10,21,0.4);border-radius:8px;margin-bottom:1rem;">
+    <div style="font-size:0.8rem;margin-bottom:0.5rem;"><strong>2. 绑定管理员 TG</strong> <span style="color:var(--text-dim);">bot 跑起来后再做</span></div>
+    <div id="bind-area">
+      <button type="button" class="btn" style="padding:0.35rem 1rem;font-size:0.8rem;" onclick="getBindCode()">生成绑定码</button>
+      <span id="bind-msg" style="font-size:0.78rem;color:var(--text-dim);margin-left:0.5rem;"></span>
+    </div>
+  </div>
+
+  <script>
+    async function refreshBotStatus() {
+      try {
+        const r = await fetch("/api/auth/bot_status").then(r => r.json());
+        const el = document.getElementById("bot-status");
+        if (!r.ok) return;
+        let html = "";
+        html += r.configured ? '<span style="color:var(--green);">● token 已配</span>' : '<span style="color:var(--text-dim);">○ 未配 token</span>';
+        html += " · ";
+        html += r.running ? '<span style="color:var(--green);">bot 在跑</span>' : '<span style="color:var(--text-dim);">bot 未运行</span>';
+        html += " · ";
+        html += r.bound ? `<span style="color:var(--green);">已绑定 TG ${r.tg_username ? '@' + r.tg_username : 'user#' + r.tg_user_id}</span> <button type="button" class="btn ghost" style="padding:0.15rem 0.5rem;font-size:0.7rem;margin-left:0.5rem;" onclick="doUnbind()">解绑</button>` : '<span style="color:var(--yellow);">未绑定</span>';
+        el.innerHTML = html;
+      } catch (e) {}
+    }
+    async function saveBotToken() {
+      const tok = document.getElementById("bot-token-input").value.trim();
+      if (!tok) { alert("填 token"); return; }
+      const r = await fetch("/api/auth/bot_token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: tok }) }).then(r => r.json());
+      if (r.ok) {
+        document.getElementById("bot-token-input").value = "";
+        alert("已保存, bot 启动中... 稍等几秒再看状态");
+        setTimeout(refreshBotStatus, 3000);
+      } else {
+        alert("保存失败: " + r.error);
+      }
+    }
+    async function clearBotToken() {
+      if (!confirm("清除 bot token? 忘记密码功能会失效")) return;
+      const r = await fetch("/api/auth/bot_token", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: "" }) }).then(r => r.json());
+      if (r.ok) refreshBotStatus();
+    }
+    async function getBindCode() {
+      const r = await fetch("/api/auth/bind_start", { method: "POST" }).then(r => r.json());
+      const el = document.getElementById("bind-msg");
+      if (r.ok) {
+        el.innerHTML = `在 bot 里发: <code style="font-size:0.85rem;color:var(--accent);user-select:all;">/bind ${r.code}</code> <span style="color:var(--text-dim);">(${r.ttl_min} 分钟内有效)</span>`;
+      } else {
+        el.innerHTML = '<span style="color:var(--red);">' + r.error + '</span>';
+      }
+    }
+    async function doUnbind() {
+      if (!confirm("解绑 TG? 解绑后忘记密码就没法用了")) return;
+      const r = await fetch("/api/auth/unbind", { method: "POST" }).then(r => r.json());
+      if (r.ok) refreshBotStatus();
+    }
+    refreshBotStatus();
+  </script>
+</div>
+
+<div class="panel">
   <div class="panel-title">外部 API · 中央看板接入</div>
   <div style="color: var(--text-1); font-size: 0.85rem; margin-bottom: 1rem; line-height: 1.7;">
     给中央看板 / 监控系统用 Bearer token 拉部门状态 + 告警数据. Schema 跟姊妹项目对齐.

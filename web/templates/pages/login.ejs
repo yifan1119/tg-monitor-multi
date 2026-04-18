@@ -14,6 +14,9 @@
       <div class="subtitle">MULTI · v<%= version %> · 加密连线</div>
 
       <form action="/login" method="POST">
+        <% if (locals.next) { %>
+          <input type="hidden" name="next" value="<%= next %>">
+        <% } %>
         <div class="form-group">
           <label>账号</label>
           <input type="text" name="username" required autofocus autocomplete="username" placeholder="admin">
@@ -32,7 +35,11 @@
         <button type="submit" class="btn" style="width: 100%;">登入</button>
       </form>
 
-      <div style="text-align: center; margin-top: 2rem; font-size: 0.75rem; color: var(--text-dim);">
+      <div style="text-align: center; margin-top: 1.25rem; font-size: 0.78rem;">
+        <a href="/forgot-password" style="color: var(--text-dim);">忘记密码?</a>
+      </div>
+
+      <div style="text-align: center; margin-top: 1.25rem; font-size: 0.75rem; color: var(--text-dim);">
         首次设置？<a href="/setup" style="color: var(--accent);">进入设置向导</a>
       </div>
     </div>

@@ -61,3 +61,7 @@ secrets/*
 .vscode/
 .idea/
 *.tmp
+data/metrics-access.jsonl
+data/auth-audit.log
+data/pending-binds.json
+data/pending-resets.json

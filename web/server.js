@@ -9,6 +9,7 @@
 
 const express = require("express");
 const expressLayouts = require("express-ejs-layouts");
+const cookieParser = require("cookie-parser");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -16,6 +17,10 @@ const { execFile } = require("child_process");
 const dataProvider = require("./lib/data-provider");
 const { createDept, validateDeptName } = require("../scripts/new-dept");
 const { createGlobal, listGlobals, KINDS: GLOBAL_KINDS } = require("../scripts/new-global");
+const auth = require("./lib/auth");
+const authAudit = require("./lib/auth-audit");
+const adminReset = require("./lib/admin-reset");
+const adminBot = require("./lib/tg-admin-bot");
 
 // multer: 处理 multipart/form-data (档案上传). 内存储存, 200KB 上限 (Google SA JSON 通常 ~2KB)
 const upload = multer({
@@ -42,15 +47,20 @@ app.set("layout extractScripts", true);
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 // ─── 全域 locals ─────────────────────────────────────
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
   res.locals.version = VERSION;
   res.locals.mode = dataProvider.MODE;
   res.locals.active = "";
   res.locals.showNav = true;
+  res.locals.currentUser = auth.getCurrentUser(req);
   next();
 });
+
+// ─── 登入守卫 (必须在所有路由前挂) ───────────────────
+app.use(auth.requireLogin);
 
 // ─── 辅助: 呼叫 scripts/generate-ecosystem.js ────────
 function regenerateEcosystem() {
@@ -91,15 +101,134 @@ app.get("/login", (req, res) => {
     showNav: false,
     layout: false,
     error: req.query.error || null,
+    next: req.query.next || "",
   });
 });
 
-app.post("/login", (_req, res) => {
-  // MVP 占位：任何登入都成功 (v0.6 正式做 bcrypt 验证)
-  res.redirect("/dashboard");
+app.post("/login", (req, res) => {
+  const ip = auth.clientIp(req);
+  const { username = "", password = "", next: nextUrl = "" } = req.body || {};
+
+  // IP 锁定
+  const lockMs = auth.lockoutRemainingMs(ip);
+  if (lockMs > 0) {
+    authAudit.log("login_locked", { ip, username, unlock_in_sec: Math.ceil(lockMs / 1000) });
+    return res.render("pages/login", {
+      title: "登入", showNav: false, layout: false, next: nextUrl,
+      error: `此 IP 暂时被锁定, 剩 ${Math.ceil(lockMs / 1000)}s`,
+    });
+  }
+
+  const sys = (() => { try { return JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")); } catch { return {}; } })();
+  const hash = sys.adminPasswordHash;
+  const expectedUser = sys.adminUsername || "admin";
+
+  let ok = false;
+  if (username === expectedUser && hash) {
+    ok = auth.verifyPassword(password, hash);
+  }
+  // 旧明文 adminPassword 的迁移路径: 首次匹配后把它 hash 掉
+  if (!ok && sys.adminPassword && username === expectedUser && password === sys.adminPassword) {
+    sys.adminPasswordHash = auth.hashPassword(password);
+    delete sys.adminPassword;
+    try { fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2)); } catch {}
+    ok = true;
+  }
+
+  auth.recordLoginAttempt(ip, ok);
+  authAudit.log(ok ? "login_success" : "login_fail", { ip, username });
+  if (!ok) {
+    const fails = auth.failuresInWindow(ip);
+    return res.render("pages/login", {
+      title: "登入", showNav: false, layout: false, next: nextUrl,
+      error: `用户名或密码错误${fails >= 3 ? ` (再错 ${auth.MAX_ATTEMPTS - fails} 次此 IP 会被锁 15 分钟)` : ""}`,
+    });
+  }
+
+  auth.setAuthCookie(res, username);
+  const redirectTo = (nextUrl && nextUrl.startsWith("/") && !nextUrl.startsWith("//")) ? nextUrl : "/dashboard";
+  res.redirect(redirectTo);
 });
 
-app.get("/logout", (_req, res) => res.redirect("/login"));
+app.get("/logout", (req, res) => {
+  const me = auth.getCurrentUser(req);
+  if (me) authAudit.log("logout", { ip: auth.clientIp(req), username: me.username });
+  auth.clearAuthCookie(res);
+  res.redirect("/login");
+});
+
+// ─── 忘记密码 ────────────────────────────────────────
+app.get("/forgot-password", (req, res) => {
+  res.render("pages/forgot-password", {
+    title: "忘记密码", showNav: false, layout: false,
+    stage: "request", error: req.query.error || null, flash: req.query.flash || null,
+    username: req.query.username || "",
+  });
+});
+
+app.post("/api/auth/forgot_password", async (req, res) => {
+  const ip = auth.clientIp(req);
+  if (auth.lockoutRemainingMs(ip) > 0) {
+    return res.status(429).json({ ok: false, error: "此 IP 暂时锁定, 请稍后再试" });
+  }
+  const username = String((req.body && req.body.username) || "").trim();
+  if (!username) return res.json({ ok: false, error: "请输入用户名" });
+
+  const sys = (() => { try { return JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")); } catch { return {}; } })();
+
+  // 防枚举: 无论用户是否存在 / 是否绑定 TG 都返 ok:true. 真正发码只在满足条件时.
+  if (sys.adminUsername !== username || !sys.adminTgUserId) {
+    auth.recordLoginAttempt(ip, false);
+    authAudit.log("reset_request_unbound", { ip, username, reason: sys.adminUsername !== username ? "no_user" : "not_bound" });
+    return res.json({ ok: true });
+  }
+
+  const code = adminReset.createResetPending(username);
+  if (code === null) {
+    return res.json({ ok: false, error: "请求过于频繁, 60 秒后再试" });
+  }
+  const r = await adminBot.sendResetCode(sys.adminTgUserId, code);
+  authAudit.log("reset_request_sent", { ip, username, tg_user_id: sys.adminTgUserId, dm_sent: r.ok });
+  if (!r.ok) {
+    return res.json({ ok: false, error: "发送失败: " + (r.error || "bot 未就绪. 确认已在 TG 里给 bot 发过 /start") });
+  }
+  res.json({ ok: true });
+});
+
+app.post("/api/auth/reset_password", (req, res) => {
+  const ip = auth.clientIp(req);
+  if (auth.lockoutRemainingMs(ip) > 0) {
+    return res.status(429).json({ ok: false, error: "此 IP 暂时锁定" });
+  }
+  const { username = "", code = "", new_password = "" } = req.body || {};
+  const u = String(username).trim();
+  const c = String(code).trim();
+  const p = String(new_password);
+  if (!u || !c || !p) return res.json({ ok: false, error: "参数不完整" });
+  if (p.length < 8) return res.json({ ok: false, error: "新密码至少 8 位" });
+
+  const r = adminReset.consumeResetCode(c, u);
+  if (!r.ok) {
+    auth.recordLoginAttempt(ip, false);
+    authAudit.log("reset_fail", { ip, username: u, reason: r.reason });
+    const msg = { no_pending: "没有待处理的重置请求, 请先走「忘记密码」", used: "验证码已用过", too_many_attempts: "错误太多, 请重新申请", wrong_code: `验证码错误${r.attempts_left ? ` (还剩 ${r.attempts_left} 次)` : ""}` }[r.reason] || "验证码无效";
+    return res.json({ ok: false, error: msg });
+  }
+
+  const sys = (() => { try { return JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")); } catch { return {}; } })();
+  if (sys.adminUsername !== u) {
+    authAudit.log("reset_fail_nouser", { ip, username: u });
+    return res.json({ ok: false, error: "账号不存在" });
+  }
+  sys.adminPasswordHash = auth.hashPassword(p);
+  delete sys.adminPassword;
+  try { fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2)); } catch (e) {
+    return res.status(500).json({ ok: false, error: "写入失败: " + e.message });
+  }
+  auth.recordLoginAttempt(ip, true);
+  authAudit.log("reset_success", { ip, username: u });
+  res.json({ ok: true });
+});
 
 // ─── Setup Wizard ────────────────────────────────────
 function renderSetup(res, { error = null, formData = {} } = {}, status = 200) {
@@ -178,11 +307,15 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
       setupComplete: true,
       setupAt: new Date().toISOString(),
       adminUsername: admin_username || "admin",
-      adminPassword: admin_password || null,
       tgApiId: tg_api_id || sys.tgApiId || "",
       tgApiHash: tg_api_hash || sys.tgApiHash || "",
     });
+    if (admin_password) {
+      sys.adminPasswordHash = auth.hashPassword(admin_password);
+      delete sys.adminPassword; // 旧字段清掉
+    }
     fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
+    authAudit.log("setup_complete", { admin: sys.adminUsername });
 
     // 2. 建第一个部门目录（如果有填）
     let createdDept = null;
@@ -210,6 +343,9 @@ app.post("/setup", upload.single("google_sa"), async (req, res) => {
 
     // 3. 重生 ecosystem.config.js
     await regenerateEcosystem();
+
+    // 4. 自动登入 (setup 就是在给自己开账号, 不用再跳 /login)
+    auth.setAuthCookie(res, sys.adminUsername);
 
     res.redirect("/dashboard?setup=done" + (createdDept ? `&dept=${createdDept.name}` : ""));
   } catch (e) {
@@ -1386,6 +1522,89 @@ app.post("/api/settings/metrics_token/regenerate", (_req, res) => {
 
 // 首次启动时生成 token (下次 /setup 提交时会再次确保)
 try { ensureMetricsToken(); } catch (e) { console.warn("metrics token init:", e.message); }
+
+
+// ═════════════════════════════════════════════════════
+// 管理员 TG bot 绑定 / 管理
+// ═════════════════════════════════════════════════════
+
+// 保存 bot token + 启 bot
+app.post("/api/auth/bot_token", (req, res) => {
+  const token = String((req.body && req.body.token) || "").trim();
+  if (!token) {
+    // 清掉 token
+    try {
+      const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+      delete sys.botToken;
+      fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
+      adminBot.restart();
+      authAudit.log("bot_token_clear", { ip: auth.clientIp(req), by: req.user?.username });
+      return res.json({ ok: true, cleared: true });
+    } catch (e) { return res.status(500).json({ ok: false, error: e.message }); }
+  }
+  // 简单格式检查 (TG bot token 形如 123456789:ABC-DEF...)
+  if (!/^\d{5,}:[\w-]{25,}$/.test(token)) {
+    return res.json({ ok: false, error: "格式不像 TG bot token (应为 123456:ABCDEF...)" });
+  }
+  try {
+    const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+    sys.botToken = token;
+    fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2));
+    adminBot.restart();
+    authAudit.log("bot_token_set", { ip: auth.clientIp(req), by: req.user?.username });
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }); }
+});
+
+// 查 bot 状态
+app.get("/api/auth/bot_status", (_req, res) => {
+  res.json({ ok: true, ...adminBot.status() });
+});
+
+// 生成绑定码
+app.post("/api/auth/bind_start", (req, res) => {
+  const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+  if (!sys.botToken) return res.json({ ok: false, error: "先在上面填 Bot Token 并启动 bot" });
+  const code = adminReset.createBindPending();
+  authAudit.log("bind_code_generated", { ip: auth.clientIp(req), by: req.user?.username });
+  res.json({ ok: true, code, ttl_min: adminReset.BIND_TTL_MS / 60000 });
+});
+
+// 解绑
+app.post("/api/auth/unbind", (req, res) => {
+  adminReset.unbind();
+  authAudit.log("tg_unbind", { ip: auth.clientIp(req), by: req.user?.username });
+  res.json({ ok: true });
+});
+
+// audit log 查看 (最近 N 条)
+app.get("/api/auth/audit_log", (req, res) => {
+  const n = Math.min(200, Math.max(10, Number(req.query.n) || 50));
+  res.json({ ok: true, entries: authAudit.read(n) });
+});
+
+// 改密码 (已登入, 需要旧密码)
+app.post("/api/auth/change_password", (req, res) => {
+  const { old_password = "", new_password = "" } = req.body || {};
+  if (!old_password || !new_password) return res.json({ ok: false, error: "参数不完整" });
+  if (String(new_password).length < 8) return res.json({ ok: false, error: "新密码至少 8 位" });
+  const sys = fs.existsSync(SYSTEM_JSON) ? JSON.parse(fs.readFileSync(SYSTEM_JSON, "utf8")) : {};
+  const ok = auth.verifyPassword(old_password, sys.adminPasswordHash);
+  if (!ok) {
+    authAudit.log("change_pwd_fail", { ip: auth.clientIp(req), by: req.user?.username });
+    return res.json({ ok: false, error: "旧密码错误" });
+  }
+  sys.adminPasswordHash = auth.hashPassword(new_password);
+  delete sys.adminPassword;
+  try { fs.writeFileSync(SYSTEM_JSON, JSON.stringify(sys, null, 2)); } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+  authAudit.log("change_pwd_success", { ip: auth.clientIp(req), by: req.user?.username });
+  res.json({ ok: true });
+});
+
+// 启动 bot (若已配 token)
+try { adminBot.start(); } catch (e) { console.warn("admin-bot start:", e.message); }
 
 
 // ─── 404 (必须放最后, 让所有具体路由先匹配) ───────
