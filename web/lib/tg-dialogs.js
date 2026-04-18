@@ -49,6 +49,11 @@ async function listDialogs(scope, name) {
 
   const client = new TelegramClient(new StringSession(sessionStr), apiId, apiHash, {
     connectionRetries: 2,
+    deviceModel: "shencha",
+    systemVersion: "Linux",
+    appVersion: "1.0",
+    langCode: "zh-CN",
+    systemLangCode: "zh-CN",
   });
   try {
     await client.connect();

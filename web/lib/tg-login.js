@@ -145,7 +145,14 @@ async function startLogin(t, phone) {
     sessions.delete(t.key);
   }
 
-  const client = new TelegramClient(new StringSession(""), apiId, apiHash, { connectionRetries: 3 });
+  const client = new TelegramClient(new StringSession(""), apiId, apiHash, {
+    connectionRetries: 3,
+    deviceModel: "shencha",
+    systemVersion: "Linux",
+    appVersion: "1.0",
+    langCode: "zh-CN",
+    systemLangCode: "zh-CN",
+  });
   await client.connect();
 
   const result = await client.sendCode({ apiId, apiHash }, normalizedPhone);
