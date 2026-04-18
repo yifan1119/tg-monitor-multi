@@ -449,10 +449,15 @@ let outputEntity = null;
 async function findDialogEntityByName(name) {
   if (!name) return null;
   const dialogs = await client.getDialogs({});
-  for (const d of dialogs) {
-    if ((d.name || "").trim() === name) return d.entity;
-  }
-  return null;
+  const matches = dialogs.filter(d => (d.name || "").trim() === name);
+  if (matches.length === 0) return null;
+  const d = matches[0];
+  const e = d.entity;
+  // 标清类型 + id, 方便用户定位发去哪了
+  const kind = d.isGroup ? "group" : d.isChannel ? "channel" : (d.isUser ? "user/saved" : "unknown");
+  const id = e?.id?.toString?.() || e?.chatId?.toString?.() || e?.channelId?.toString?.() || "?";
+  console.log(`[中转群] 解析到 "${name}" → type=${kind}, id=${id}${matches.length > 1 ? ` (同名共 ${matches.length} 个, 用第一个!)` : ""}`);
+  return e;
 }
 
 async function getChatInfo(message, peerId) {
