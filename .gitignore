@@ -65,3 +65,7 @@ data/metrics-access.jsonl
 data/auth-audit.log
 data/pending-binds.json
 data/pending-resets.json
+data/notified-sessions.json
+
+# enable-https.sh 生成的本地 override (Caddy 网络绑定, 每台 VPS 不同)
+docker-compose.override.yml
