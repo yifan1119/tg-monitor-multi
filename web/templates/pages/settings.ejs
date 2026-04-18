@@ -93,7 +93,7 @@
         <td>
           <code id="metrics-token" style="font-size:0.8rem;user-select:all;word-break:break-all;"><%= systemInfo.metricsToken %></code>
           <button type="button" class="btn ghost" style="margin-left:0.5rem;padding:0.2rem 0.6rem;font-size:0.72rem;"
-            onclick="navigator.clipboard.writeText(document.getElementById('metrics-token').textContent).then(()=>this.textContent='已复制')">复制</button>
+            onclick="copyMetricsToken(this)">复制</button>
           <button type="button" class="btn ghost" style="padding:0.2rem 0.6rem;font-size:0.72rem;color:var(--yellow);border-color:var(--yellow);"
             onclick="regenMetricsToken()">重置</button>
         </td>
@@ -101,7 +101,7 @@
       <tr>
         <td style="color: var(--text-dim); vertical-align: top;">调用示例</td>
         <td>
-          <pre style="background:rgba(7,10,21,0.6);padding:0.75rem;border-radius:6px;font-size:0.75rem;margin:0;overflow-x:auto;"><code>curl -H "Authorization: Bearer <%= systemInfo.metricsToken %>" \
+          <pre style="background:rgba(7,10,21,0.6);padding:0.75rem;border-radius:6px;font-size:0.75rem;margin:0;overflow-x:auto;"><code>curl -H "Authorization: Bearer <span id="curl-token"><%= systemInfo.metricsToken %></span>" \
   <%= systemInfo.publicDomain ? `https://${systemInfo.publicDomain}` : 'http://<VPS_IP>:PORT' %>/api/v1/metrics</code></pre>
         </td>
       </tr>
@@ -112,12 +112,35 @@
     </tbody>
   </table>
   <script>
+    // HTTP 环境 navigator.clipboard 被浏览器禁用, fallback 到 execCommand
+    function copyMetricsToken(btn) {
+      const txt = document.getElementById("metrics-token").textContent;
+      const done = () => { btn.textContent = "已复制"; setTimeout(() => btn.textContent = "复制", 1500); };
+      // 优先 clipboard API (HTTPS / localhost 生效)
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(txt).then(done).catch(() => fallback(txt, done));
+      } else {
+        fallback(txt, done);
+      }
+    }
+    function fallback(txt, done) {
+      const ta = document.createElement("textarea");
+      ta.value = txt;
+      ta.style.position = "fixed"; ta.style.left = "-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); done(); }
+      catch { alert("浏览器拒绝复制, 请手动选中 token 复制 (双击即可全选)"); }
+      document.body.removeChild(ta);
+    }
     async function regenMetricsToken() {
       if (!confirm("重置 token 会让现在所有接入立即失效, 要通知调用方换新 token. 继续?")) return;
       try {
         const r = await fetch("/api/settings/metrics_token/regenerate", { method: "POST" }).then(r => r.json());
         if (r.ok) {
           document.getElementById("metrics-token").textContent = r.token;
+          const c = document.getElementById("curl-token");
+          if (c) c.textContent = r.token;
           alert("已重置. 记得把新 token 给调用方.");
         } else {
           alert("重置失败: " + r.error);
