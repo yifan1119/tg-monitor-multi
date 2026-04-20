@@ -55,16 +55,16 @@ pm2 startup           # 照提示跑 sudo 指令 (systemd 自啟)
 
 ```bash
 cd /opt/tg-monitor-multi
-node scripts/new-dept.js yueda "悦达" "悦达-业务审查" 1ABC "关键词提醒yd"
+node scripts/new-dept.js demo1 "示例部门" "DEMO-业务群" 1ABC "关键词提醒d1"
 
 # TG 登入 (CLI):
-cd depts/yueda && node ../../scripts/login-dept.js yueda
+cd depts/demo1 && node ../../scripts/login-dept.js demo1
 
 # 重生 ecosystem:
 node scripts/generate-ecosystem.js
 
 # 啟動該部門:
-pm2 start ecosystem.config.js --only tg-listener-yueda,tg-system-events-yueda,tg-sheet-writer-yueda
+pm2 start ecosystem.config.js --only tg-listener-demo1,tg-system-events-demo1,tg-sheet-writer-demo1
 ```
 
 ## 日常指令
@@ -72,8 +72,8 @@ pm2 start ecosystem.config.js --only tg-listener-yueda,tg-system-events-yueda,tg
 ```bash
 pm2 list                       # 所有進程
 pm2 logs                       # 實時 log
-pm2 logs tg-listener-yueda     # 單進程 log
-pm2 restart tg-listener-yueda  # 重啟某進程
+pm2 logs tg-listener-demo1     # 單進程 log
+pm2 restart tg-listener-demo1  # 重啟某進程
 pm2 monit                      # 即時監控
 
 bash scripts/update.sh         # 升級 (自動偵測走裸跑)

@@ -2,7 +2,7 @@
 
 ## 設計原則
 
-1. **苏总原本架構已跑通** — 5 類進程 / PM2 管 / 純 JSON 狀態 / gram.js / Google Sheet，這些不動
+1. **baseline 原本架構已跑通** — 5 類進程 / PM2 管 / 純 JSON 狀態 / gram.js / Google Sheet，這些不動
 2. **代碼已經通用** — baseline 9 部門代碼 MD5 全同，差異全靠 config.json，不需要改業務邏輯
 3. **模板化是打包，不是重構** — MVP 把 9 份散落代碼收成 1 份 shared/，加一層 Web 包裝
 

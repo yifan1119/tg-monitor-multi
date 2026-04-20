@@ -93,7 +93,7 @@ function listAvailableSessions(excludeTarget = null) {
 
 // 从另一个已登入的 target 复制 session.txt 过来
 // 同号不同设备理论上会被 TG 踢, 但 baseline 实测是同一个 session string 可以在多进程共用
-// (苏总原本的 tg-sheet-writer/<dept>/session.txt == tg-system-services/<dept>/session.txt 就是这么干)
+// (baseline 的 tg-sheet-writer/<dept>/session.txt == tg-system-services/<dept>/session.txt 就是这么干)
 function copySessionFrom(targetTo, sourceKey) {
   if (!targetExists(targetTo)) throw new Error(`${targetTo.label} 不存在`);
   const [srcType, srcName] = String(sourceKey || "").split(":");

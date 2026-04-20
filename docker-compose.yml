@@ -2,8 +2,8 @@
 #
 # Multi-instance 支持 (向下兼容):
 #   未设 INSTANCE       → tg-monitor-multi / 原行为 (现有部署无需改)
-#   INSTANCE=ivan       → tg-monitor-multi-ivan      (另一份, 完全独立)
-#   INSTANCE=client-a   → tg-monitor-multi-client-a
+#   INSTANCE=client-a   → tg-monitor-multi-client-a  (另一份, 完全独立)
+#   INSTANCE=client-b   → tg-monitor-multi-client-b
 #
 # INSTANCE_SUFFIX 由 install.sh 算好写入 .env:
 #   INSTANCE 空        → INSTANCE_SUFFIX=""

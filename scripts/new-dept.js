@@ -188,7 +188,7 @@ if (require.main === module) {
 
   if (!name || !display || !outputChat || !spreadsheetId || !sheetTab) {
     console.error("用法: node scripts/new-dept.js <dept_name> <display> <output_chat> <spreadsheet_id> <sheet_tab>");
-    console.error("例: node scripts/new-dept.js yueda 悦达 悦达-业务审查 1Q9pMXg5... 关键词提醒yd");
+    console.error("例: node scripts/new-dept.js demo1 示例部门 DEMO-业务群 1Q9pMXg5... 关键词提醒d1");
     process.exit(1);
   }
 

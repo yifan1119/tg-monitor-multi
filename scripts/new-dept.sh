@@ -5,7 +5,7 @@
 #   bash scripts/new-dept.sh <dept_name> <display> "<output_chat>" <spreadsheet_id> "<sheet_tab>"
 #
 # 範例:
-#   bash scripts/new-dept.sh yueda 悦达 "悦达-业务审查" 1Q9pMXg5... "关键词提醒yd"
+#   bash scripts/new-dept.sh demo1 示例部门 "DEMO-业务群" 1Q9pMXg5... "关键词提醒d1"
 
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

@@ -127,7 +127,7 @@
 ### 新增
 - **Session 复制** — TG 登入 wizard (dept + global) step=phone 顶新增「快速方式」block
   - 下拉选已登入的 session → 一键复制 session.txt 过去 (不走验证码)
-  - 对齐苏总原设计: baseline 的 sheet-writer + system-events 本来就共用同一份 session.txt
+  - 对齐 baseline 原设计: sheet-writer + system-events 本来就共用同一份 session.txt
   - `web/lib/tg-login.js` 新增 `listAvailableSessions()` / `copySessionFrom()`
   - `server.js` 新增 `POST /depts/:name/login/copy` + `POST /settings/global/:kind/login/copy`
 - **Web 升级 / 回滚** (`/settings`):

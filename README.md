@@ -62,9 +62,9 @@ bash install.sh --https
 2. **TG API ID / Hash**（去 [my.telegram.org/apps](https://my.telegram.org/apps) 拿）
 3. **上传 Google Service Account JSON**（GCP Console → IAM → Service Accounts → 建 key → 下载 JSON）
 4. **第一个部门**
-   - 部门代号：小写字母 + 数字（`yueda`、`dept-01`）
-   - 显示名：可中文（`悦达`）
-   - 中转群名：业务群的 TG 名（`悦达-业务审查`）
+   - 部门代号：小写字母 + 数字（`demo1`、`dept-01`）
+   - 显示名：可中文（`示例部门`）
+   - 中转群名：业务群的 TG 名（`DEMO-业务群`）
    - Spreadsheet ID：从 Sheet URL `/d/<这段>/edit` 取
    - 工作表分页名：**留空自动生成** `关键词命中-<部门代号>`
 
@@ -146,7 +146,7 @@ curl -H "Authorization: Bearer <token>" \
   "ts": "2026-04-18 14:30:00",
   "product": "tg-monitor-multi",
   "instance": "",
-  "version": "0.3.1-docker",
+  "version": "0.5.0-docker",
   "system": {
     "listener_online": 3,
     "listener_warn": 0,
@@ -155,7 +155,7 @@ curl -H "Authorization: Bearer <token>" \
   },
   "alerts_today": { "total": 23, "keyword": 23, "title_change": 0 },
   "accounts": [
-    { "name": "yueda", "display": "悦达", "heartbeat_status": "online", "hit_24h": 17, ... }
+    { "name": "demo1", "display": "示例部门", "heartbeat_status": "online", "hit_24h": 17, ... }
   ],
   "alerts_recent": [...],
   "update": { "has_update": false, ... }
@@ -247,14 +247,14 @@ cd /opt/tg-monitor-multi && bash scripts/update.sh
 一台 VPS 跑多份，给不同客户独立空间：
 
 ```bash
-# 客户 suzong
-bash install.sh suzong --https
-# → /opt/tg-monitor-multi-suzong/
-# → 容器 tg-monitor-multi-suzong
-# → HTTPS multi-suzong.<IP>.nip.io
-
-# 客户 client-a
+# 客户 A
 bash install.sh client-a --https
+# → /opt/tg-monitor-multi-client-a/
+# → 容器 tg-monitor-multi-client-a
+# → HTTPS multi-client-a.<IP>.nip.io
+
+# 客户 B
+bash install.sh client-b --https
 # → 完全独立
 ```
 
@@ -266,7 +266,7 @@ bash install.sh client-a --https
 
 顶栏会显示当前实例名（默认实例不显示）：
 ```
-TG-MONITOR-MULTI · suzong    v0.3.1-docker
+TG-MONITOR-MULTI · client-a    v0.5.0-docker
 ```
 
 ---
@@ -288,9 +288,9 @@ bash scripts/uninstall.sh --purge --force
 
 **多实例场景**：
 ```bash
-cd /opt/tg-monitor-multi-suzong && bash scripts/uninstall.sh suzong --purge
+cd /opt/tg-monitor-multi-client-a && bash scripts/uninstall.sh client-a --purge
 ```
-精准只删 suzong，不误动其他实例。
+精准只删 client-a，不误动其他实例。
 
 ---
 

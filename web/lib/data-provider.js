@@ -128,15 +128,15 @@ async function realIsSetupComplete() {
 // ═════════════════════════════════════════════════════
 
 const MOCK_DEPTS = [
-  { name: "yueda",       display: "悦达",     outputChat: "悦达-业务审查",     sheetId: "1Q9pMXg5I1dUDTKvuTibH7gB9vib9nZNPvNJ4cxxQiCc", sheetTab: "关键词提醒yd",   sessionOk: true,  lastMsg: "2026-04-16 20:42", hit24h: 17 },
-  { name: "yipin",       display: "逸品",     outputChat: "逸品-业务审查",     sheetId: "1xXxXxXxX", sheetTab: "关键词提醒yp",   sessionOk: true,  lastMsg: "2026-04-16 20:51", hit24h: 23 },
-  { name: "dingfeng",    display: "鼎丰",     outputChat: "鼎丰-业务审查",     sheetId: "1yYyYyYyY", sheetTab: "关键词提醒df",   sessionOk: true,  lastMsg: "2026-04-16 20:38", hit24h: 9 },
-  { name: "linghang",    display: "领航",     outputChat: "领航-业务审查",     sheetId: "1zZzZzZzZ", sheetTab: "关键词提醒lh",   sessionOk: true,  lastMsg: "2026-04-16 20:55", hit24h: 31 },
-  { name: "ruisheng",    display: "瑞升",     outputChat: "瑞升-业务审查",     sheetId: "1aAaAaAaA", sheetTab: "关键词提醒rs",   sessionOk: true,  lastMsg: "2026-04-16 19:12", hit24h: 5 },
-  { name: "hengrui",     display: "恒睿",     outputChat: "恒睿-业务审查",     sheetId: "1bBbBbBbB", sheetTab: "关键词提醒hr",   sessionOk: false, lastMsg: "2026-04-15 11:04", hit24h: 0 },
-  { name: "wuji",        display: "无极",     outputChat: "无极-业务审查",     sheetId: "1cCcCcCcC", sheetTab: "关键词提醒wj",   sessionOk: true,  lastMsg: "2026-04-16 20:46", hit24h: 12 },
-  { name: "yipinfuhua",  display: "逸品福华", outputChat: "逸品福华-业务审查", sheetId: "1dDdDdDdD", sheetTab: "关键词提醒yf",   sessionOk: true,  lastMsg: "2026-04-16 20:33", hit24h: 8 },
-  { name: "wanyouyinli", display: "万有引力", outputChat: "万有引力-业务审查", sheetId: "1eEeEeEeE", sheetTab: "关键词提醒wyyl", sessionOk: true,  lastMsg: "2026-04-16 20:58", hit24h: 14 },
+  { name: "demo1", display: "示例部门一", outputChat: "DEMO1-业务群", sheetId: "1Q9pMXg5I1dUDTKvuTibH7gB9vib9nZNPvNJ4cxxQiCc", sheetTab: "关键词提醒d1", sessionOk: true,  lastMsg: "2026-04-16 20:42", hit24h: 17 },
+  { name: "demo2", display: "示例部门二", outputChat: "DEMO2-业务群", sheetId: "1xXxXxXxX", sheetTab: "关键词提醒d2", sessionOk: true,  lastMsg: "2026-04-16 20:51", hit24h: 23 },
+  { name: "demo3", display: "示例部门三", outputChat: "DEMO3-业务群", sheetId: "1yYyYyYyY", sheetTab: "关键词提醒d3", sessionOk: true,  lastMsg: "2026-04-16 20:38", hit24h: 9 },
+  { name: "demo4", display: "示例部门四", outputChat: "DEMO4-业务群", sheetId: "1zZzZzZzZ", sheetTab: "关键词提醒d4", sessionOk: true,  lastMsg: "2026-04-16 20:55", hit24h: 31 },
+  { name: "demo5", display: "示例部门五", outputChat: "DEMO5-业务群", sheetId: "1aAaAaAaA", sheetTab: "关键词提醒d5", sessionOk: true,  lastMsg: "2026-04-16 19:12", hit24h: 5 },
+  { name: "demo6", display: "示例部门六", outputChat: "DEMO6-业务群", sheetId: "1bBbBbBbB", sheetTab: "关键词提醒d6", sessionOk: false, lastMsg: "2026-04-15 11:04", hit24h: 0 },
+  { name: "demo7", display: "示例部门七", outputChat: "DEMO7-业务群", sheetId: "1cCcCcCcC", sheetTab: "关键词提醒d7", sessionOk: true,  lastMsg: "2026-04-16 20:46", hit24h: 12 },
+  { name: "demo8", display: "示例部门八", outputChat: "DEMO8-业务群", sheetId: "1dDdDdDdD", sheetTab: "关键词提醒d8", sessionOk: true,  lastMsg: "2026-04-16 20:33", hit24h: 8 },
+  { name: "demo9", display: "示例部门九", outputChat: "DEMO9-业务群", sheetId: "1eEeEeEeE", sheetTab: "关键词提醒d9", sessionOk: true,  lastMsg: "2026-04-16 20:58", hit24h: 14 },
 ];
 
 const MOCK_PROCS = MOCK_DEPTS.flatMap((d, i) => [
@@ -149,9 +149,9 @@ const MOCK_PROCS = MOCK_DEPTS.flatMap((d, i) => [
 ]);
 
 const MOCK_ALERTS = [
-  { ts: "20:42:11", level: "warn",  dept: "hengrui", msg: "session 已斷線 30+ 分鐘，需要重新登入" },
-  { ts: "20:38:02", level: "info",  dept: "yueda",   msg: "命中關鍵字「到期」× 3" },
-  { ts: "19:22:18", level: "error", dept: "hengrui", msg: "Telegram auth error: AUTH_KEY_UNREGISTERED" },
+  { ts: "20:42:11", level: "warn",  dept: "demo6", msg: "session 已斷線 30+ 分鐘，需要重新登入" },
+  { ts: "20:38:02", level: "info",  dept: "demo1", msg: "命中關鍵字「到期」× 3" },
+  { ts: "19:22:18", level: "error", dept: "demo6", msg: "Telegram auth error: AUTH_KEY_UNREGISTERED" },
 ];
 
 // ═════════════════════════════════════════════════════

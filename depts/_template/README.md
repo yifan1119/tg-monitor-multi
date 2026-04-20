@@ -31,5 +31,5 @@ depts/<dept_name>/
 
 ## 命名規則
 
-- **dept_name**：小寫英文 + 連字號，長度 2-32，例：`yueda`, `yipin-fuhua`, `client-01`
+- **dept_name**：小寫英文 + 連字號，長度 2-32，例：`demo1`, `dept-02`, `client-01`
 - **不可用**：空白、中文、特殊符號、保留字（`_template` / `_shared` / `root`）

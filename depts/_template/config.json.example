@@ -5,7 +5,7 @@
   "_listener_section": "── listener.js 用 ──",
   "listenMode": "all-groups",
   "listenChats": [],
-  "outputChatName": "<中轉群名稱，如 悦达-业务审查>",
+  "outputChatName": "<中轉群名稱，如 DEMO-业务群>",
   "keywords": [
     "到期",
     "续费",
@@ -25,7 +25,7 @@
   "_sheet_writer_section": "── sheet_writer.js 用 ──",
   "inputChatName": "<中轉群名稱，跟 outputChatName 一致>",
   "spreadsheetId": "<Google Sheet ID>",
-  "sheetName": "<工作表分頁名稱，如 关键词提醒yd>",
+  "sheetName": "<工作表分頁名稱，如 关键词提醒d1>",
   "backfillIntervalMs": 60000,
   "backfillLimit": 30,
   "headerMap": {

@@ -1,7 +1,7 @@
 // shared/_gsa-resolver.js
 //
 // 找 Google SA 档案的帮手. 按优先级尝试多处:
-//   1. cwd 下的 ./google-service-account.json (baseline 兼容: 苏总每个进程目录自己一份)
+//   1. cwd 下的 ./google-service-account.json (baseline 兼容: 每个进程目录自己一份)
 //   2. <project-root>/shared/google-service-account.json (multi 主路径, Docker volume mount 入这)
 //   3. <project-root>/secrets/google-service-account.json (docker-compose 宿主机目录)
 //

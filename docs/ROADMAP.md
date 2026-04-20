@@ -15,7 +15,7 @@
 | D5 | 4/20 | `/depts/:name/edit` + 新增部門 Web 表單 + 保存即重啟 | 本地完整體驗「新增→編輯→重啟」 |
 | D6 | 4/21 | `install.sh` + 乾淨 VPS 測試（見下方選項） | 從零 `curl \| bash` 裝出可用實例 |
 | D7 | 4/22 | README 完整 + 錄 30 秒 demo + CHANGELOG | 交付 |
-| 緩衝 | 4/23 | 修 bug + MVP 驗收 + 給苏总看 | v0.2.0-mvp tag |
+| 緩衝 | 4/23 | 修 bug + MVP 驗收 + 客戶驗收 | v0.2.0-mvp tag |
 
 ### MVP 不做（留後續）
 

@@ -32,14 +32,14 @@
 
     <div class="form-group">
       <label>部门代号 (dept_name)</label>
-      <input type="text" name="dept_name" placeholder="例: yueda" pattern="[a-z][a-z0-9-]{1,31}" value="<%= fd.dept_name || '' %>" required
+      <input type="text" name="dept_name" placeholder="例: demo1" pattern="[a-z][a-z0-9-]{1,31}" value="<%= fd.dept_name || '' %>" required
         title="小写字母开头, 2-32 字符, 只含 a-z / 0-9 / -">
       <div class="hint"><strong style="color: var(--yellow);">只能用小写英文+数字+连字号</strong>（不能填中文！），2-32 字符。作为目录名 <code>depts/&lt;name&gt;/</code> 和 PM2 进程名</div>
     </div>
 
     <div class="form-group">
       <label>部门名称（显示用，可中文）</label>
-      <input type="text" name="dept_display" placeholder="例: 悦达" value="<%= fd.dept_display || '' %>" required>
+      <input type="text" name="dept_display" placeholder="例: 示例部门" value="<%= fd.dept_display || '' %>" required>
       <div class="hint">Dashboard 上显示的名称，可用中文</div>
     </div>
   </div>
@@ -49,7 +49,7 @@
 
     <div class="form-group">
       <label>中转群名称 (outputChatName)</label>
-      <input type="text" name="output_chat" placeholder="例: 悦达-业务审查" value="<%= fd.output_chat || '' %>" required>
+      <input type="text" name="output_chat" placeholder="例: DEMO-业务群" value="<%= fd.output_chat || '' %>" required>
       <div class="hint">
         listener 命中关键字后会推讯息到这个群、sheet_writer 订阅这个群。<br>
         <strong>TG 真人号必须先手动加入这个群</strong>

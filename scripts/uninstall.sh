@@ -5,8 +5,8 @@
 #
 # 用法:
 #   bash scripts/uninstall.sh                # 卸载当前目录对应的实例
-#   bash scripts/uninstall.sh ivan           # 指定实例名
-#   bash scripts/uninstall.sh ivan --purge   # 连数据一起删 (!!!)
+#   bash scripts/uninstall.sh client-a           # 指定实例名
+#   bash scripts/uninstall.sh client-a --purge   # 连数据一起删 (!!!)
 #   bash scripts/uninstall.sh --force        # 跳过确认提示
 #
 # 做什么:
@@ -128,7 +128,7 @@ for cname in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -iE "caddy" | 
         # end 行严格: "=== end <tag> ==="
         if (index($0, "=== end " tag " ===") > 0) { skip = 0; next }
         if (skip) next
-        # start 行: "=== <tag> " (带 trailing 空格避免前缀撞 tg-monitor-multi-ivan)
+        # start 行: "=== <tag> " (带 trailing 空格避免前缀撞 tg-monitor-multi-client-a)
         if (index($0, "=== " tag " ") > 0) { skip = 1; next }
         print
       }

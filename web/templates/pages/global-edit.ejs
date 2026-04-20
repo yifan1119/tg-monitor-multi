@@ -25,7 +25,7 @@
   <% if (kind === "title-sheet-writer") { %>
     <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.9;">
       <strong>跨部门群名变更汇总</strong>。一个"汇总员"TG 号同时加入 N 个部门的中转群
-      （例如<code>悦达-业务审查</code>、<code>逸品-业务审查</code>...）。
+      （例如<code>DEMO-业务群-A</code>、<code>DEMO-业务群-B</code>...）。
       当某个中转群内出现<strong>"群名变更提醒"</strong>消息时（由该部门的 listener 推送），
       本进程根据消息来自<strong>哪个中转群</strong>，去下面 <code>routes</code> 里查对应的
       Google Sheet → 把群名变更事件写到该部门的 Sheet 里。
@@ -36,7 +36,7 @@
   <% } else if (kind === "review-report-writer") { %>
     <div style="font-size: 0.85rem; color: var(--text-1); line-height: 1.9;">
       <strong>审查报告闭环跟踪</strong>。一个"观察员"TG 号订阅 N 个部门的<strong>审查报告群</strong>
-      （不是中转群！另一批群，例<code>悦达-审查报告</code>）。
+      （不是中转群！另一批群，例<code>DEMO-审查报告</code>）。
       当某群里出现含"审查报告"关键字的消息 → 建立一笔记录。
       之后出现含"闭环处理结果说明"的消息 → 关闭这笔记录（闭环）。
       所有部门的记录<strong>全部汇总到同一张 Sheet</strong>。
@@ -144,12 +144,12 @@
           </div>
           <div class="form-group">
             <label>中转群名称（消息来源）</label>
-            <input type="text" name="route_key" list="tg-groups" value="<%= key %>" placeholder="例: 悦达-业务审查">
+            <input type="text" name="route_key" list="tg-groups" value="<%= key %>" placeholder="例: DEMO-业务群">
             <div class="hint">这个"汇总员"号<strong>必须已加入这个群</strong>. 填跟 listener 推送目标（该部门的 outputChatName）一模一样的名字</div>
           </div>
           <div class="form-group">
             <label>部门代号（标识用，方便对照）</label>
-            <input type="text" name="route_inst" value="<%= val.instance || '' %>" placeholder="例: yueda">
+            <input type="text" name="route_inst" value="<%= val.instance || '' %>" placeholder="例: demo1">
             <div class="hint">对应 <code>depts/&lt;这个名字&gt;</code>, 写到 Sheet 时不显示, 只是标识方便对照</div>
           </div>
           <div class="form-group">
@@ -180,10 +180,10 @@
             <button type="button" class="btn ghost" style="padding: 0.2rem 0.6rem; font-size: 0.7rem; color: var(--red); border-color: var(--red);" onclick="this.closest('.route-row').remove()">✕ 删除此路由</button>
           </div>
           <div class="form-group"><label>中转群名称（消息来源）</label>
-            <input type="text" name="route_key" list="tg-groups" placeholder="例: 悦达-业务审查">
+            <input type="text" name="route_key" list="tg-groups" placeholder="例: DEMO-业务群">
             <div class="hint">"汇总员"号必须已加入这个群</div></div>
           <div class="form-group"><label>部门代号</label>
-            <input type="text" name="route_inst" placeholder="例: yueda"></div>
+            <input type="text" name="route_inst" placeholder="例: demo1"></div>
           <div class="form-group"><label>目标 Spreadsheet ID</label>
             <input type="text" name="route_sheet"></div>
           <div class="form-group"><label>目标工作表分页</label>

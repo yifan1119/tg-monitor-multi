@@ -8,8 +8,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh | bash
 #
 #   # 带实例名 (一台 VPS 跑多份 - 比如 SaaS 给不同客户):
-#   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh ivan --https
-#   # ivan 就是客户名, 跑第二份: bash install.sh suzong --https
+#   curl -fsSL https://raw.githubusercontent.com/yifan1119/tg-monitor-multi/main/install.sh -o install.sh && bash install.sh client-a --https
+#   # client-a 就是客户名, 跑第二份: bash install.sh client-b --https
 #
 #   # 可配置:
 #   INSTALL_DIR=/opt/tg-monitor-multi \
@@ -34,9 +34,9 @@ cd /tmp 2>/dev/null || cd / || true
 
 # 实例名 — 支持 3 种传法, 优先级: 位置参数 > env var > 空 (默认实例).
 #   bash install.sh                  # 默认, 容器名 tg-monitor-multi
-#   bash install.sh ivan             # 客户实例, 容器名 tg-monitor-multi-ivan
-#   bash install.sh ivan --https     # 顺带开 HTTPS
-#   INSTANCE=ivan bash install.sh    # env var (向下兼容)
+#   bash install.sh client-a             # 客户实例, 容器名 tg-monitor-multi-client-a
+#   bash install.sh client-a --https     # 顺带开 HTTPS
+#   INSTANCE=client-a bash install.sh    # env var (向下兼容)
 INSTANCE_ARG=""
 # 第一个非 -- 开头的位置参数视为 INSTANCE (必须以字母/数字开头, 避免把 --flag 当 instance)
 for arg in "$@"; do
